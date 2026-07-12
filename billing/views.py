@@ -1,4 +1,5 @@
 import json
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -9,17 +10,20 @@ from .mixins import ExportMixin
 from .models import *
 from django.db.models import Q
 from django.db.models import F
+from django.db import transaction
 from .forms import (
     BrandForm, ProductGroupForm, SupplierForm,
     ProductForm, CustomerForm, InvoiceForm, InvoiceDetailFormSet,
     ProductSearchForm, BrandSearchForm, ProductGroupSearchForm,
     SupplierSearchForm, CustomerSearchForm, InvoiceSearchForm,
+    ConfiguracionForm,
 )
 
 from decimal import Decimal
 from shared.mixins import StaffRequiredMixin, ProtectedDeleteMixin, PermissionRequiredMixin
 from shared.decorators import audit_action, permission_required_with_message
 from shared.emails import send_invoice_email
+from security.views import AdminOnlyMixin
 from .invoice_pdf import generar_pdf_factura
 from django.db.models import ProtectedError
 from django.contrib import messages
@@ -682,6 +686,48 @@ class ProductDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView)
     permission_required = 'billing.view_product'
     permission_redirect_url = '/'
 
+@login_required
+def product_price(request, pk):
+    """Endpoint JSON de solo lectura: precio actual de un producto (autocompletado en Factura/Compra)."""
+    product = get_object_or_404(Product, pk=pk)
+    return JsonResponse({'precio': str(product.unit_price)})
+
+
+@login_required
+def customer_create_ajax(request):
+    """
+    Alta rápida de Cliente desde el modal de "Nueva Factura", para no perder
+    las líneas ya cargadas en el formulario principal. No reemplaza a
+    CustomerCreateView (el formulario completo sigue existiendo tal cual).
+    """
+    if request.method == 'POST':
+        form = CustomerForm(request.POST)
+        if form.is_valid():
+            customer = form.save()
+            return JsonResponse({'ok': True, 'id': customer.id, 'text': str(customer)})
+        return JsonResponse({'ok': False, 'errors': form.errors.get_json_data()}, status=400)
+
+    form = CustomerForm()
+    return render(request, 'billing/_customer_form_modal.html', {'form': form})
+
+
+@login_required
+def supplier_create_ajax(request):
+    """
+    Alta rápida de Proveedor desde el modal de "Nueva Compra" (purchasing),
+    para no perder las líneas ya cargadas. Vive en billing porque Supplier
+    pertenece a esta app. No reemplaza a SupplierCreateView.
+    """
+    if request.method == 'POST':
+        form = SupplierForm(request.POST)
+        if form.is_valid():
+            supplier = form.save()
+            return JsonResponse({'ok': True, 'id': supplier.id, 'text': str(supplier)})
+        return JsonResponse({'ok': False, 'errors': form.errors.get_json_data()}, status=400)
+
+    form = SupplierForm()
+    return render(request, 'billing/_supplier_form_modal.html', {'form': form})
+
 
 
 # === CUSTOMER (CBV) ===
@@ -772,6 +818,21 @@ class CustomerDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView
     permission_redirect_url = '/'
 
 
+# === CONFIGURACIÓN DEL SISTEMA (solo Administrador) ===
+class ConfiguracionUpdateView(AdminOnlyMixin, UpdateView):
+    model = ConfiguracionSistema
+    form_class = ConfiguracionForm
+    template_name = 'billing/configuracion_form.html'
+    success_url = reverse_lazy('billing:configuracion')
+
+    def get_object(self, queryset=None):
+        return ConfiguracionSistema.get_activa()
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Configuración actualizada correctamente.')
+        return super().form_valid(form)
+
+
 # === INVOICE (CBV) ===
 class InvoiceListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
     model = Invoice
@@ -838,6 +899,7 @@ class InvoiceListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, 
 @login_required
 @permission_required_with_message('billing.add_invoice', redirect_url='/invoices/')
 def invoice_create(request):
+    config = ConfiguracionSistema.get_activa()
     if request.method == 'POST':
         form = InvoiceForm(request.POST)
         formset = InvoiceDetailFormSet(request.POST)
@@ -851,9 +913,21 @@ def invoice_create(request):
 
             subtotal = sum(d.subtotal for d in invoice.details.all())
             invoice.subtotal = subtotal
-            invoice.tax = subtotal * Decimal('0.15')
+            invoice.tax = subtotal * config.iva_porcentaje / Decimal('100')
             invoice.total = invoice.subtotal + invoice.tax
-            invoice.save()
+
+            with transaction.atomic():
+                if invoice.tipo_pago == 'CONTADO':
+                    invoice.saldo = 0
+                    invoice.estado = 'PAGADA'
+                else:  # CREDITO
+                    invoice.saldo = invoice.total
+                    invoice.estado = 'PENDIENTE'
+                invoice.save()
+
+                if invoice.tipo_pago == 'CREDITO':
+                    from creditos_ventas.services import generar_cuotas
+                    generar_cuotas(invoice, form.cleaned_data['num_cuotas'])
 
             # Correo con la factura en PDF al cliente (si tiene correo registrado)
             pdf_bytes = generar_pdf_factura(invoice)
@@ -876,7 +950,7 @@ def invoice_create(request):
         form = InvoiceForm()
         formset = InvoiceDetailFormSet()
     return render(request, 'billing/invoice_form.html', {
-        'form': form, 'formset': formset, 'title': 'Nueva Factura'
+        'form': form, 'formset': formset, 'title': 'Nueva Factura', 'config': config,
     })
 class InvoiceDeleteView(LoginRequiredMixin, StaffRequiredMixin, PermissionRequiredMixin, DeleteView):
     model = Invoice;
@@ -896,3 +970,12 @@ def invoice_detail(request, pk):
         pk=pk
     )
     return render(request, 'billing/invoice_detail.html', {'invoice': invoice})
+
+
+@login_required
+@permission_required_with_message('billing.view_invoice', redirect_url='/')
+def invoice_pdf_view(request, pk):
+    """Genera el PDF de la factura para imprimir/verla en el navegador."""
+    invoice = get_object_or_404(Invoice, pk=pk)
+    pdf_bytes = generar_pdf_factura(invoice)
+    return HttpResponse(pdf_bytes, content_type='application/pdf')

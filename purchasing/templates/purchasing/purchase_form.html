@@ -1,4 +1,5 @@
 {% extends 'billing/base.html' %}
+{% load l10n %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
 <div class="card shadow-sm border-0">
@@ -13,7 +14,12 @@
       <div class="row g-3 mb-4">
         <div class="col-md-6">
           <label class="form-label fw-semibold">Proveedor</label>
-          {{ form.supplier }}
+          <div class="d-flex gap-2">
+            {{ form.supplier }}
+            <button type="button" class="btn btn-outline-primary btn-sm text-nowrap" data-bs-toggle="modal" data-bs-target="#modalNuevoProveedor">
+              + Nuevo Proveedor
+            </button>
+          </div>
           {% for error in form.supplier.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
         </div>
         <div class="col-md-6">
@@ -34,6 +40,7 @@
               <th>Producto</th>
               <th style="width:120px;">Cantidad</th>
               <th style="width:160px;">Costo unitario</th>
+              <th style="width:130px;" class="text-end">Subtotal</th>
               <th style="width:80px;" class="text-center">Quitar</th>
             </tr>
           </thead>
@@ -47,6 +54,9 @@
               </td>
               <td>{{ detail_form.quantity }}</td>
               <td>{{ detail_form.unit_cost }}</td>
+              <td class="text-end">
+                <span class="row-subtotal fw-semibold">$0.00</span>
+              </td>
               <td class="text-center">
                 <div style="display:none;">{{ detail_form.DELETE }}</div>
                 <button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="bi bi-x-lg"></i></button>
@@ -61,6 +71,24 @@
         <i class="bi bi-plus-lg"></i> Agregar producto
       </button>
 
+      {# ── Resumen de totales (en vivo, vía JS) ── #}
+      <div class="d-flex justify-content-end mb-3">
+        <div style="min-width:280px;">
+          <div class="d-flex justify-content-between">
+            <span class="text-muted">Subtotal:</span>
+            <span id="summary-subtotal">$0.00</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-muted">IVA ({{ config.iva_display|default:"15" }}%):</span>
+            <span id="summary-tax">$0.00</span>
+          </div>
+          <div class="d-flex justify-content-between fs-5 fw-bold border-top pt-2 mt-2">
+            <span>Total:</span>
+            <span id="summary-total">$0.00</span>
+          </div>
+        </div>
+      </div>
+
       {% if formset.non_form_errors %}<div class="alert alert-danger">{{ formset.non_form_errors }}</div>{% endif %}
 
       <div class="d-flex gap-2 mt-3 border-top pt-3">
@@ -71,10 +99,97 @@
   </div>
 </div>
 
+{# ── Modal: Nuevo Proveedor (alta rápida sin perder el progreso de la compra) ── #}
+<div class="modal fade" id="modalNuevoProveedor" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nuevo Proveedor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body" id="modalNuevoProveedorBody">
+        <div class="text-center text-muted py-4">Cargando…</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" form="ajaxSupplierForm" class="btn btn-primary" id="btnGuardarNuevoProveedor">Guardar Proveedor</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   var totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
   var tbody = document.getElementById('detail-rows');
+  // "/products/0/precio/" -> reemplazamos el 0 por el id real del producto elegido
+  var priceUrlTemplate = "{% url 'billing:product_price' 0 %}";
+  // IVA configurable (Configuración del Sistema), no quemado en el JS
+  var IVA_PORCENTAJE = {{ config.iva_porcentaje|default:15|unlocalize }};
+
+  // ── Cálculo en vivo de subtotales y total (no toca el backend) ──
+  function parseNum(val) {
+    var n = parseFloat(val);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function recalcRow(row) {
+    var qty = row.querySelector('input[name$="-quantity"]');
+    var cost = row.querySelector('input[name$="-unit_cost"]');
+    var subtotalEl = row.querySelector('.row-subtotal');
+    var subtotal = parseNum(qty && qty.value) * parseNum(cost && cost.value);
+    if (subtotalEl) subtotalEl.textContent = '$' + subtotal.toFixed(2);
+    return subtotal;
+  }
+
+  function recalcAll() {
+    var subtotal = 0;
+    tbody.querySelectorAll('tr.detail-row').forEach(function (row) {
+      if (row.style.display === 'none') return;
+      subtotal += recalcRow(row);
+    });
+    var tax = subtotal * (IVA_PORCENTAJE / 100);
+    document.getElementById('summary-subtotal').textContent = '$' + subtotal.toFixed(2);
+    document.getElementById('summary-tax').textContent = '$' + tax.toFixed(2);
+    document.getElementById('summary-total').textContent = '$' + (subtotal + tax).toFixed(2);
+  }
+
+  tbody.addEventListener('input', function (e) {
+    if (e.target.matches('input[name$="-quantity"], input[name$="-unit_cost"]')) {
+      if (e.target.matches('input[name$="-unit_cost"]')) {
+        e.target.dataset.manualEdit = '1';
+      }
+      recalcAll();
+    }
+  });
+  tbody.addEventListener('change', function (e) {
+    if (e.target.matches('input[name$="-quantity"], input[name$="-unit_cost"]')) {
+      recalcAll();
+    }
+  });
+
+  // ── Autocompletar costo unitario al elegir producto (sugerencia inicial:
+  // usa el precio de venta del producto como aproximación, el usuario puede
+  // editarlo libremente) ──
+  tbody.addEventListener('change', function (e) {
+    if (!e.target.matches('select[name$="-product"]')) return;
+    var productId = e.target.value;
+    if (!productId) return;
+
+    var row = e.target.closest('tr');
+    var costField = row.querySelector('input[name$="-unit_cost"]');
+    if (!costField || costField.dataset.manualEdit === '1') return;
+
+    fetch(priceUrlTemplate.replace('/0/', '/' + productId + '/'), { credentials: 'same-origin' })
+      .then(function (resp) { return resp.ok ? resp.json() : null; })
+      .then(function (data) {
+        if (data && data.precio !== undefined) {
+          costField.value = data.precio;
+          recalcAll();
+        }
+      })
+      .catch(function () { /* si falla la red, el usuario sigue pudiendo escribir el costo a mano */ });
+  });
 
   function attachRemove(btn) {
     btn.addEventListener('click', function () {
@@ -86,6 +201,7 @@
       } else {
         row.remove();
       }
+      recalcAll();
     });
   }
 
@@ -107,6 +223,7 @@
         el.value = '1';
       } else {
         el.value = '';
+        delete el.dataset.manualEdit;
       }
     });
 
@@ -114,10 +231,74 @@
       el.value = '';
     });
 
+    var newSubtotalEl = newRow.querySelector('.row-subtotal');
+    if (newSubtotalEl) newSubtotalEl.textContent = '$0.00';
+
     attachRemove(newRow.querySelector('.remove-row'));
     tbody.appendChild(newRow);
     totalFormsInput.value = formIndex + 1;
+    recalcAll();
   });
+
+  recalcAll();
+
+  // ── Modal: Nuevo Proveedor (alta rápida sin perder el progreso de la compra) ──
+  var supplierModalEl = document.getElementById('modalNuevoProveedor');
+  var supplierModalBody = document.getElementById('modalNuevoProveedorBody');
+  var supplierSelect = document.getElementById('id_supplier');
+  var supplierCreateUrl = "{% url 'billing:supplier_create_ajax' %}";
+
+  function loadSupplierForm() {
+    supplierModalBody.innerHTML = '<div class="text-center text-muted py-4">Cargando…</div>';
+    fetch(supplierCreateUrl, { credentials: 'same-origin' })
+      .then(function (resp) { return resp.text(); })
+      .then(function (html) { supplierModalBody.innerHTML = html; })
+      .catch(function () {
+        supplierModalBody.innerHTML = '<div class="text-danger">No se pudo cargar el formulario.</div>';
+      });
+  }
+
+  function showSupplierFieldErrors(errors) {
+    supplierModalBody.querySelectorAll('.ajax-field-error').forEach(function (el) { el.remove(); });
+    Object.keys(errors).forEach(function (fieldName) {
+      var input = supplierModalBody.querySelector('[name="' + fieldName + '"]');
+      var messages = errors[fieldName].map(function (e) { return e.message; }).join(' ');
+      var div = document.createElement('div');
+      div.className = 'text-danger small ajax-field-error';
+      div.textContent = messages;
+      if (input) {
+        input.closest('.mb-2').appendChild(div);
+      } else {
+        supplierModalBody.insertBefore(div, supplierModalBody.firstChild);
+      }
+    });
+  }
+
+  if (supplierModalEl) {
+    supplierModalEl.addEventListener('show.bs.modal', loadSupplierForm);
+
+    supplierModalBody.addEventListener('submit', function (e) {
+      if (!e.target.matches('#ajaxSupplierForm')) return;
+      e.preventDefault();
+
+      var formData = new FormData(e.target);
+      fetch(supplierCreateUrl, { method: 'POST', credentials: 'same-origin', body: formData })
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+          if (data.ok) {
+            var option = document.createElement('option');
+            option.value = data.id;
+            option.textContent = data.text;
+            option.selected = true;
+            supplierSelect.appendChild(option);
+            supplierSelect.value = data.id;
+            bootstrap.Modal.getInstance(supplierModalEl).hide();
+          } else {
+            showSupplierFieldErrors(data.errors);
+          }
+        });
+    });
+  }
 })();
 </script>
 {% endblock %}

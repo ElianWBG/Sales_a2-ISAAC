@@ -2,6 +2,7 @@ import json
 from decimal import Decimal
 
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import HttpResponse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -9,11 +10,12 @@ from django.views.generic import ListView
 from django.db.models import Avg, Sum, Count, F
 
 from billing.mixins import ExportMixin
-from billing.models import Product
+from billing.models import Product, ConfiguracionSistema
 from shared.mixins import PermissionRequiredMixin
 from shared.decorators import permission_required_with_message
 from .models import Purchase, PurchaseDetail
 from .forms import PurchaseForm, PurchaseDetailFormSet, PurchaseSearchForm
+from .purchase_pdf import generar_pdf_compra
 
 
 # ── Columnas disponibles para Compras ──
@@ -94,6 +96,7 @@ class PurchaseListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin,
 @permission_required_with_message('purchasing.add_purchase', redirect_url='/purchases/')
 def purchase_create(request):
     """Crea una compra con sus líneas de detalle."""
+    config = ConfiguracionSistema.get_activa()
     if request.method == 'POST':
         form = PurchaseForm(request.POST)
         formset = PurchaseDetailFormSet(request.POST)
@@ -109,7 +112,7 @@ def purchase_create(request):
             # Totales
             subtotal = sum(d.subtotal for d in purchase.details.all())
             purchase.subtotal = subtotal
-            purchase.tax = subtotal * Decimal('0.15')   # IVA 15%
+            purchase.tax = subtotal * config.iva_porcentaje / Decimal('100')
             purchase.total = purchase.subtotal + purchase.tax
             purchase.save()
 
@@ -119,7 +122,7 @@ def purchase_create(request):
         form = PurchaseForm()
         formset = PurchaseDetailFormSet()
     return render(request, 'purchasing/purchase_form.html', {
-        'form': form, 'formset': formset, 'title': 'Nueva Compra',
+        'form': form, 'formset': formset, 'title': 'Nueva Compra', 'config': config,
     })
 
 
@@ -134,6 +137,15 @@ def purchase_detail(request, pk):
         pk=pk
     )
     return render(request, 'purchasing/purchase_detail.html', {'purchase': purchase})
+
+
+@login_required
+@permission_required_with_message('purchasing.view_purchase', redirect_url='/')
+def purchase_pdf_view(request, pk):
+    """Genera el PDF de la compra para imprimir/verla en el navegador."""
+    purchase = get_object_or_404(Purchase, pk=pk)
+    pdf_bytes = generar_pdf_compra(purchase)
+    return HttpResponse(pdf_bytes, content_type='application/pdf')
 
 
 # === DELETE (FBV) ===

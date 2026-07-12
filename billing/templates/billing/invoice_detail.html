@@ -14,6 +14,11 @@
       <div class="col-md-6 text-end">
         <p><strong>Fecha:</strong> {{ invoice.invoice_date|date:"d/m/Y H:i" }}</p>
         <p><strong>Factura #:</strong> {{ invoice.id }}</p>
+        <p>
+          <strong>Tipo de pago:</strong> {{ invoice.tipo_pago }}
+          <span class="badge {% if invoice.estado == 'PAGADA' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ invoice.estado }}</span>
+        </p>
+        {% if invoice.tipo_pago == 'CREDITO' %}<p><strong>Saldo pendiente:</strong> ${{ invoice.saldo }}</p>{% endif %}
       </div>
     </div>
     <table class="table table-bordered">
@@ -51,6 +56,10 @@
       </tfoot>
     </table>
     <a href="{% url 'billing:invoice_list' %}" class="btn btn-secondary">Volver</a>
+    <a href="{% url 'billing:invoice_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">Imprimir Factura</a>
+    {% if invoice.tipo_pago == 'CREDITO' %}
+    <a href="{% url 'creditos_ventas:cuotas_factura' invoice.pk %}" class="btn btn-outline-dark">Ver Cuotas</a>
+    {% endif %}
     {% if perms.billing.delete_invoice %}
     <a href="{% url 'billing:invoice_delete' invoice.pk %}" class="btn btn-danger">Eliminar</a>
     {% endif %}

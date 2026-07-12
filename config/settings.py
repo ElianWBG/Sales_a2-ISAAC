@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'billing',
     'purchasing',
     'security',
+    'creditos_ventas',
     'widget_tweaks',
     'django_extensions',
 ]

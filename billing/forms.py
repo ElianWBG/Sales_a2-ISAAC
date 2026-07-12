@@ -1,6 +1,7 @@
 from django import forms
 from .models import (
-    Brand, ProductGroup, Supplier, Product, Customer, Invoice, InvoiceDetail
+    Brand, ProductGroup, Supplier, Product, Customer, Invoice, InvoiceDetail,
+    ConfiguracionSistema,
 )
 
 _sm_text   = {'class': 'form-control form-control-sm'}
@@ -160,13 +161,34 @@ class CustomerForm(forms.ModelForm):
         fields = ['dni', 'first_name', 'last_name', 'email', 'phone', 'address', 'is_active']
 
 
+class ConfiguracionForm(forms.ModelForm):
+    class Meta:
+        model = ConfiguracionSistema
+        fields = ['iva_porcentaje']
+
+
 class InvoiceForm(forms.ModelForm):
+    num_cuotas = forms.IntegerField(
+        required=False, min_value=1, label='Número de cuotas mensuales',
+        help_text='Solo si el tipo de pago es CRÉDITO.',
+        widget=forms.NumberInput(attrs={'class': 'form-control'}),
+    )
+
     class Meta:
         model = Invoice
-        fields = ['customer']
+        fields = ['customer', 'tipo_pago']
         widgets = {
             'customer': forms.Select(attrs={'class': 'form-select'}),
+            'tipo_pago': forms.Select(attrs={'class': 'form-select'}),
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('tipo_pago') == 'CREDITO':
+            num = cleaned.get('num_cuotas')
+            if not num or num < 1:
+                raise forms.ValidationError('Debes indicar el número de cuotas (mínimo 1) para una venta a crédito.')
+        return cleaned
 
 
 InvoiceDetailFormSet = forms.inlineformset_factory(

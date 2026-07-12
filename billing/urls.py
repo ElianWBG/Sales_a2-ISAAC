@@ -27,6 +27,7 @@ urlpatterns = [
     path('suppliers/create/', views.SupplierCreateView.as_view(), name='supplier_create'),
     path('suppliers/<int:pk>/edit/', views.SupplierUpdateView.as_view(), name='supplier_update'),
     path('suppliers/<int:pk>/delete/', views.SupplierDeleteView.as_view(), name='supplier_delete'),
+    path('suppliers/create-ajax/', views.supplier_create_ajax, name='supplier_create_ajax'),
 
     # Product
     path('products/', views.ProductListView.as_view(), name='product_list'),
@@ -34,6 +35,7 @@ urlpatterns = [
     path('products/<int:pk>/', views.ProductDetailView.as_view(), name='product_detail'),
     path('products/<int:pk>/edit/', views.ProductUpdateView.as_view(), name='product_update'),
     path('products/<int:pk>/delete/', views.ProductDeleteView.as_view(), name='product_delete'),
+    path('products/<int:pk>/precio/', views.product_price, name='product_price'),
 
     # Customer
     path('customers/', views.CustomerListView.as_view(), name='customer_list'),
@@ -41,11 +43,16 @@ urlpatterns = [
     path('customers/create/', views.CustomerCreateView.as_view(), name='customer_create'),
     path('customers/<int:pk>/edit/', views.CustomerUpdateView.as_view(), name='customer_update'),
     path('customers/<int:pk>/delete/', views.CustomerDeleteView.as_view(), name='customer_delete'),
+    path('customers/create-ajax/', views.customer_create_ajax, name='customer_create_ajax'),
+
+    # Configuración del sistema (solo Administrador)
+    path('configuracion/', views.ConfiguracionUpdateView.as_view(), name='configuracion'),
 
     # Invoice
     path('invoices/', views.InvoiceListView.as_view(), name='invoice_list'),
     path('invoices/create/', views.invoice_create, name='invoice_create'),
     path('invoices/<int:pk>/', views.invoice_detail, name='invoice_detail'),
+    path('invoices/<int:pk>/pdf/', views.invoice_pdf_view, name='invoice_pdf'),
     path('invoices/<int:pk>/delete/', views.InvoiceDeleteView.as_view(), name='invoice_delete'),
 
 ]

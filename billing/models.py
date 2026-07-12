@@ -103,8 +103,48 @@ class Invoice(models.Model):
     tax = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Impuesto')
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Total')
     is_active = models.BooleanField(default=True)
+    tipo_pago = models.CharField(
+        max_length=10,
+        choices=[("CONTADO", "CONTADO"), ("CREDITO", "CREDITO")],
+        default="CONTADO",
+        verbose_name="Tipo de pago",
+    )
+    saldo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    estado = models.CharField(
+        max_length=15,
+        choices=[("PENDIENTE", "PENDIENTE"), ("PAGADA", "PAGADA")],
+        default="PENDIENTE",
+    )
     class Meta: ordering = ['-invoice_date']
     def __str__(self): return f'Invoice #{self.id} - {self.customer}'
+
+class ConfiguracionSistema(models.Model):
+    """Configuración global del sistema (patrón singleton simple)."""
+    iva_porcentaje = models.DecimalField(
+        max_digits=5, decimal_places=2, default=15.00,
+        verbose_name='IVA (%)',
+        help_text='Porcentaje de IVA aplicado a facturas y compras. Ej: 15.00 = 15%.'
+    )
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuración del Sistema'
+        verbose_name_plural = 'Configuración del Sistema'
+
+    def __str__(self):
+        return f'IVA: {self.iva_porcentaje}%'
+
+    @property
+    def iva_display(self):
+        """'15.00' -> '15', '12.50' -> '12.5' (sin coma decimal, sin ceros de más)."""
+        return f'{self.iva_porcentaje:.2f}'.rstrip('0').rstrip('.')
+
+    @classmethod
+    def get_activa(cls):
+        """Siempre hay un solo registro (patrón singleton simple)."""
+        obj, _ = cls.objects.get_or_create(pk=1, defaults={'iva_porcentaje': 15.00})
+        return obj
+
 
 class InvoiceDetail(models.Model):
     """Líneas de factura."""

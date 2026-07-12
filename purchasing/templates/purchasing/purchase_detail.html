@@ -46,6 +46,7 @@
 
     <div class="d-flex gap-2 border-top pt-3">
       <a href="{% url 'purchasing:purchase_list' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+      <a href="{% url 'purchasing:purchase_pdf' purchase.pk %}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-printer"></i> Imprimir Compra</a>
       {% if perms.purchasing.delete_purchase %}
       <a href="{% url 'purchasing:purchase_delete' purchase.pk %}" class="btn btn-danger"><i class="bi bi-trash"></i> Eliminar</a>
       {% endif %}

@@ -1,4 +1,5 @@
 {% extends 'billing/base.html' %}
+{% load l10n %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
 <div class="card shadow">
@@ -9,9 +10,31 @@
 
       <div class="mb-3">
         <label class="form-label fw-bold">Cliente</label>
-        {{ form.customer }}
+        <div class="d-flex gap-2">
+          {{ form.customer }}
+          <button type="button" class="btn btn-outline-primary btn-sm text-nowrap" data-bs-toggle="modal" data-bs-target="#modalNuevoCliente">
+            + Nuevo Cliente
+          </button>
+        </div>
         {% for error in form.customer.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
       </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Tipo de pago</label>
+          {{ form.tipo_pago }}
+          {% for error in form.tipo_pago.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="col-md-6" id="num-cuotas-wrapper">
+          <label class="form-label fw-bold">{{ form.num_cuotas.label }}</label>
+          {{ form.num_cuotas }}
+          {% if form.num_cuotas.help_text %}<small class="text-muted d-block">{{ form.num_cuotas.help_text }}</small>{% endif %}
+          {% for error in form.num_cuotas.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+        </div>
+      </div>
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+      {% endif %}
 
       <h5 class="mt-4 mb-3">Detalle de la factura</h5>
       {{ formset.management_form }}
@@ -22,6 +45,7 @@
             <th>Producto</th>
             <th style="width: 120px;">Cantidad</th>
             <th style="width: 150px;">Precio unitario</th>
+            <th style="width: 130px;" class="text-end">Subtotal</th>
             <th style="width: 90px;">Quitar</th>
           </tr>
         </thead>
@@ -42,6 +66,9 @@
               {{ detail_form.unit_price }}
               {% for error in detail_form.unit_price.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
             </td>
+            <td class="text-end">
+              <span class="row-subtotal fw-semibold">$0.00</span>
+            </td>
             <td class="text-center">
               <div style="display:none;">{{ detail_form.DELETE }}</div>
               <button type="button" class="btn btn-sm btn-outline-danger remove-row">✕</button>
@@ -52,6 +79,24 @@
       </table>
 
       <button type="button" id="add-row" class="btn btn-sm btn-success mb-3">+ Agregar producto</button>
+
+      {# ── Resumen de totales (en vivo, vía JS) ── #}
+      <div class="d-flex justify-content-end mb-3">
+        <div style="min-width:280px;">
+          <div class="d-flex justify-content-between">
+            <span class="text-muted">Subtotal:</span>
+            <span id="summary-subtotal">$0.00</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-muted">IVA ({{ config.iva_display|default:"15" }}%):</span>
+            <span id="summary-tax">$0.00</span>
+          </div>
+          <div class="d-flex justify-content-between fs-5 fw-bold border-top pt-2 mt-2">
+            <span>Total:</span>
+            <span id="summary-total">$0.00</span>
+          </div>
+        </div>
+      </div>
 
       {% if formset.non_form_errors %}
         <div class="text-danger">{{ formset.non_form_errors }}</div>
@@ -65,10 +110,95 @@
   </div>
 </div>
 
+{# ── Modal: Nuevo Cliente (alta rápida sin perder el progreso de la factura) ── #}
+<div class="modal fade" id="modalNuevoCliente" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nuevo Cliente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body" id="modalNuevoClienteBody">
+        <div class="text-center text-muted py-4">Cargando…</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" form="ajaxCustomerForm" class="btn btn-primary" id="btnGuardarNuevoCliente">Guardar Cliente</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   var totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
   var tbody = document.getElementById('detail-rows');
+  // "/products/0/precio/" -> reemplazamos el 0 por el id real del producto elegido
+  var priceUrlTemplate = "{% url 'billing:product_price' 0 %}";
+  // IVA configurable (Configuración del Sistema), no quemado en el JS
+  var IVA_PORCENTAJE = {{ config.iva_porcentaje|default:15|unlocalize }};
+
+  // ── Cálculo en vivo de subtotales y total (no toca el backend) ──
+  function parseNum(val) {
+    var n = parseFloat(val);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function recalcRow(row) {
+    var qty = row.querySelector('input[name$="-quantity"]');
+    var price = row.querySelector('input[name$="-unit_price"]');
+    var subtotalEl = row.querySelector('.row-subtotal');
+    var subtotal = parseNum(qty && qty.value) * parseNum(price && price.value);
+    if (subtotalEl) subtotalEl.textContent = '$' + subtotal.toFixed(2);
+    return subtotal;
+  }
+
+  function recalcAll() {
+    var subtotal = 0;
+    tbody.querySelectorAll('tr.detail-row').forEach(function (row) {
+      if (row.style.display === 'none') return;
+      subtotal += recalcRow(row);
+    });
+    var tax = subtotal * (IVA_PORCENTAJE / 100);
+    document.getElementById('summary-subtotal').textContent = '$' + subtotal.toFixed(2);
+    document.getElementById('summary-tax').textContent = '$' + tax.toFixed(2);
+    document.getElementById('summary-total').textContent = '$' + (subtotal + tax).toFixed(2);
+  }
+
+  tbody.addEventListener('input', function (e) {
+    if (e.target.matches('input[name$="-quantity"], input[name$="-unit_price"]')) {
+      if (e.target.matches('input[name$="-unit_price"]')) {
+        e.target.dataset.manualEdit = '1';
+      }
+      recalcAll();
+    }
+  });
+  tbody.addEventListener('change', function (e) {
+    if (e.target.matches('input[name$="-quantity"], input[name$="-unit_price"]')) {
+      recalcAll();
+    }
+  });
+
+  // ── Autocompletar precio unitario al elegir producto ──
+  tbody.addEventListener('change', function (e) {
+    if (!e.target.matches('select[name$="-product"]')) return;
+    var productId = e.target.value;
+    if (!productId) return;
+
+    var row = e.target.closest('tr');
+    var priceField = row.querySelector('input[name$="-unit_price"]');
+    if (!priceField || priceField.dataset.manualEdit === '1') return;
+
+    fetch(priceUrlTemplate.replace('/0/', '/' + productId + '/'), { credentials: 'same-origin' })
+      .then(function (resp) { return resp.ok ? resp.json() : null; })
+      .then(function (data) {
+        if (data && data.precio !== undefined) {
+          priceField.value = data.precio;
+          recalcAll();
+        }
+      })
+      .catch(function () { /* si falla la red, el usuario sigue pudiendo escribir el precio a mano */ });
+  });
 
   function attachRemove(btn) {
     btn.addEventListener('click', function () {
@@ -81,6 +211,7 @@
         // Fila agregada dinámicamente: se elimina del DOM directamente
         row.remove();
       }
+      recalcAll();
     });
   }
 
@@ -103,6 +234,7 @@
         el.value = '1';
       } else {
         el.value = '';
+        delete el.dataset.manualEdit;
       }
     });
 
@@ -111,13 +243,91 @@
       el.value = '';
     });
 
+    var newSubtotalEl = newRow.querySelector('.row-subtotal');
+    if (newSubtotalEl) newSubtotalEl.textContent = '$0.00';
+
     // El botón de quitar ahora elimina la fila del DOM (no hay DELETE útil aquí)
     var removeBtn = newRow.querySelector('.remove-row');
     attachRemove(removeBtn);
 
     tbody.appendChild(newRow);
     totalFormsInput.value = formIndex + 1;
+    recalcAll();
   });
+
+  recalcAll();
+
+  // ── Mostrar "Número de cuotas" solo si el tipo de pago es CREDITO ──
+  var tipoPagoSelect = document.getElementById('id_tipo_pago');
+  var numCuotasWrapper = document.getElementById('num-cuotas-wrapper');
+
+  function toggleNumCuotas() {
+    if (!tipoPagoSelect || !numCuotasWrapper) return;
+    numCuotasWrapper.style.display = tipoPagoSelect.value === 'CREDITO' ? '' : 'none';
+  }
+
+  if (tipoPagoSelect) {
+    tipoPagoSelect.addEventListener('change', toggleNumCuotas);
+    toggleNumCuotas();
+  }
+
+  // ── Modal: Nuevo Cliente (alta rápida sin perder el progreso de la factura) ──
+  var customerModalEl = document.getElementById('modalNuevoCliente');
+  var customerModalBody = document.getElementById('modalNuevoClienteBody');
+  var customerSelect = document.getElementById('id_customer');
+  var customerCreateUrl = "{% url 'billing:customer_create_ajax' %}";
+
+  function loadCustomerForm() {
+    customerModalBody.innerHTML = '<div class="text-center text-muted py-4">Cargando…</div>';
+    fetch(customerCreateUrl, { credentials: 'same-origin' })
+      .then(function (resp) { return resp.text(); })
+      .then(function (html) { customerModalBody.innerHTML = html; })
+      .catch(function () {
+        customerModalBody.innerHTML = '<div class="text-danger">No se pudo cargar el formulario.</div>';
+      });
+  }
+
+  function showCustomerFieldErrors(errors) {
+    customerModalBody.querySelectorAll('.ajax-field-error').forEach(function (el) { el.remove(); });
+    Object.keys(errors).forEach(function (fieldName) {
+      var input = customerModalBody.querySelector('[name="' + fieldName + '"]');
+      var messages = errors[fieldName].map(function (e) { return e.message; }).join(' ');
+      var div = document.createElement('div');
+      div.className = 'text-danger small ajax-field-error';
+      div.textContent = messages;
+      if (input) {
+        input.closest('.mb-2').appendChild(div);
+      } else {
+        customerModalBody.insertBefore(div, customerModalBody.firstChild);
+      }
+    });
+  }
+
+  if (customerModalEl) {
+    customerModalEl.addEventListener('show.bs.modal', loadCustomerForm);
+
+    customerModalBody.addEventListener('submit', function (e) {
+      if (!e.target.matches('#ajaxCustomerForm')) return;
+      e.preventDefault();
+
+      var formData = new FormData(e.target);
+      fetch(customerCreateUrl, { method: 'POST', credentials: 'same-origin', body: formData })
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+          if (data.ok) {
+            var option = document.createElement('option');
+            option.value = data.id;
+            option.textContent = data.text;
+            option.selected = true;
+            customerSelect.appendChild(option);
+            customerSelect.value = data.id;
+            bootstrap.Modal.getInstance(customerModalEl).hide();
+          } else {
+            showCustomerFieldErrors(data.errors);
+          }
+        });
+    });
+  }
 })();
 </script>
 {% endblock %}
