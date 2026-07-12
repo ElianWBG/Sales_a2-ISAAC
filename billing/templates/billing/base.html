@@ -1,0 +1,105 @@
+{% load security_tags %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Ventas{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand" href="{% url 'billing:home' %}">Sistema de Ventas</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto">
+        {% if user.is_authenticated %}
+
+        <!-- COMPRAS: Analista de Compras y Administrador -->
+        {% if perms.billing.view_brand %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'billing:brand_list' %}">Marcas</a></li>
+        {% endif %}
+        {% if perms.purchasing.view_purchase %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'purchasing:purchase_list' %}">Compras</a></li>
+        {% endif %}
+        {% if perms.billing.view_productgroup %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'billing:productgroup_list' %}">Grupos</a></li>
+        {% endif %}
+        {% if perms.billing.view_supplier %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'billing:supplier_list' %}">Proveedores</a></li>
+        {% endif %}
+        {% if perms.billing.view_product %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'billing:product_list' %}">Productos</a></li>
+        {% endif %}
+
+        <!-- VENTAS: Vendedor y Administrador -->
+        {% if perms.billing.view_customer %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'billing:customer_list' %}">Clientes</a></li>
+        {% endif %}
+        {% if perms.billing.view_invoice %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'billing:invoice_list' %}">Facturas</a></li>
+        {% endif %}
+
+        <!-- SEGURIDAD: solo Administrador -->
+        {% if user|has_group:'Administrador' %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Seguridad</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'security:user_list' %}">Usuarios</a></li>
+            <li><a class="dropdown-item" href="{% url 'security:group_list' %}">Roles</a></li>
+            <li><a class="dropdown-item" href="{% url 'security:permission_list' %}">Catálogo de Permisos</a></li>
+          </ul>
+        </li>
+        {% endif %}
+
+        {% endif %}
+      </ul>
+      <ul class="navbar-nav">
+        {% if user.is_authenticated %}
+        <li class="nav-item">
+          <span class="nav-link text-light">
+            {{ user.username }}{% with role=user.groups.first %}{% if role %}
+            <span class="badge {{ role.name|role_badge_class }} align-middle">{{ role.name }}</span>
+            {% elif user.is_superuser %}
+            <span class="badge bg-secondary align-middle">Superadmin</span>
+            {% endif %}{% endwith %}
+          </span>
+        </li>
+        <li class="nav-item">
+          <form method="post" action="{% url 'logout' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="nav-link btn btn-link text-light"
+                    style="text-decoration:none;">Logout</button>
+          </form>
+        </li>
+        {% else %}
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'security:login' %}">Login</a>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container mt-4">
+  {% if messages %}
+    {% for m in messages %}
+    <div class="alert alert-{{ m.tags }} alert-dismissible fade show">
+      {{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endif %}
+  {% block content %}
+    
+  
+  {% endblock %}
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

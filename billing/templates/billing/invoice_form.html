@@ -1,0 +1,123 @@
+{% extends 'billing/base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="card shadow">
+  <div class="card-header bg-primary text-white"><h4>{{ title }}</h4></div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">Cliente</label>
+        {{ form.customer }}
+        {% for error in form.customer.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+      </div>
+
+      <h5 class="mt-4 mb-3">Detalle de la factura</h5>
+      {{ formset.management_form }}
+
+      <table class="table table-bordered align-middle" id="detail-table">
+        <thead class="table-dark">
+          <tr>
+            <th>Producto</th>
+            <th style="width: 120px;">Cantidad</th>
+            <th style="width: 150px;">Precio unitario</th>
+            <th style="width: 90px;">Quitar</th>
+          </tr>
+        </thead>
+        <tbody id="detail-rows">
+          {% for detail_form in formset %}
+          {% for error in form.customer.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+          <tr class="detail-row">
+            <td>
+              {{ detail_form.product }}
+              {% for error in detail_form.product.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              {% for hidden in detail_form.hidden_fields %}{{ hidden }}{% endfor %}
+            </td>
+            <td>
+              {{ detail_form.quantity }}
+              {% for error in detail_form.quantity.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+            </td>
+            <td>
+              {{ detail_form.unit_price }}
+              {% for error in detail_form.unit_price.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+            </td>
+            <td class="text-center">
+              <div style="display:none;">{{ detail_form.DELETE }}</div>
+              <button type="button" class="btn btn-sm btn-outline-danger remove-row">✕</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <button type="button" id="add-row" class="btn btn-sm btn-success mb-3">+ Agregar producto</button>
+
+      {% if formset.non_form_errors %}
+        <div class="text-danger">{{ formset.non_form_errors }}</div>
+      {% endif %}
+
+      <div>
+        <button type="submit" class="btn btn-primary">Guardar Factura</button>
+        <a href="{% url 'billing:invoice_list' %}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+  var tbody = document.getElementById('detail-rows');
+
+  function attachRemove(btn) {
+    btn.addEventListener('click', function () {
+      var row = btn.closest('tr');
+      var deleteCheckbox = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      if (deleteCheckbox) {
+        deleteCheckbox.checked = true;
+        row.style.display = 'none';
+      } else {
+        // Fila agregada dinámicamente: se elimina del DOM directamente
+        row.remove();
+      }
+    });
+  }
+
+  document.querySelectorAll('#detail-table .remove-row').forEach(attachRemove);
+
+  document.getElementById('add-row').addEventListener('click', function () {
+    var formIndex = parseInt(totalFormsInput.value, 10);
+    var lastRow = tbody.querySelector('tr.detail-row:last-of-type');
+    var newRow = lastRow.cloneNode(true);
+
+    // Actualizar nombres e ids con el nuevo índice (form-0- -> form-N-)
+    newRow.querySelectorAll('[name]').forEach(function (el) {
+      el.name = el.name.replace(/-\d+-/, '-' + formIndex + '-');
+      if (el.id) el.id = el.id.replace(/-\d+-/, '-' + formIndex + '-');
+      if (el.type === 'checkbox') {
+        el.checked = false;
+      } else if (el.tagName === 'SELECT') {
+        el.value = '';
+      } else if (el.name.endsWith('-quantity')) {
+        el.value = '1';
+      } else {
+        el.value = '';
+      }
+    });
+
+    // Quitar campos hidden de id (la nueva fila no tiene pk)
+    newRow.querySelectorAll('input[type="hidden"][name$="-id"]').forEach(function (el) {
+      el.value = '';
+    });
+
+    // El botón de quitar ahora elimina la fila del DOM (no hay DELETE útil aquí)
+    var removeBtn = newRow.querySelector('.remove-row');
+    attachRemove(removeBtn);
+
+    tbody.appendChild(newRow);
+    totalFormsInput.value = formIndex + 1;
+  });
+})();
+</script>
+{% endblock %}

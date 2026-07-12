@@ -1,0 +1,123 @@
+{% extends 'billing/base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="card shadow-sm border-0">
+  <div class="card-header text-white py-3" style="background:linear-gradient(135deg,#1a56db,#0e3fa5);">
+    <h4 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-cart-plus"></i> {{ title }}</h4>
+  </div>
+  <div class="card-body p-4">
+    <form method="post">
+      {% csrf_token %}
+
+      {# ── Cabecera ── #}
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Proveedor</label>
+          {{ form.supplier }}
+          {% for error in form.supplier.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">N° Documento</label>
+          {{ form.document_number }}
+          {% for error in form.document_number.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+      </div>
+
+      {# ── Detalle ── #}
+      <h5 class="mb-3 d-flex align-items-center gap-2"><i class="bi bi-list-ul"></i> Detalle de la compra</h5>
+      {{ formset.management_form }}
+
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle" id="detail-table">
+          <thead class="table-dark">
+            <tr>
+              <th>Producto</th>
+              <th style="width:120px;">Cantidad</th>
+              <th style="width:160px;">Costo unitario</th>
+              <th style="width:80px;" class="text-center">Quitar</th>
+            </tr>
+          </thead>
+          <tbody id="detail-rows">
+            {% for detail_form in formset %}
+            <tr class="detail-row">
+              <td>
+                {{ detail_form.product }}
+                {% for hidden in detail_form.hidden_fields %}{{ hidden }}{% endfor %}
+                {% for error in detail_form.product.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              </td>
+              <td>{{ detail_form.quantity }}</td>
+              <td>{{ detail_form.unit_cost }}</td>
+              <td class="text-center">
+                <div style="display:none;">{{ detail_form.DELETE }}</div>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="bi bi-x-lg"></i></button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <button type="button" id="add-row" class="btn btn-sm btn-success mb-3">
+        <i class="bi bi-plus-lg"></i> Agregar producto
+      </button>
+
+      {% if formset.non_form_errors %}<div class="alert alert-danger">{{ formset.non_form_errors }}</div>{% endif %}
+
+      <div class="d-flex gap-2 mt-3 border-top pt-3">
+        <button type="submit" class="btn btn-primary px-4"><i class="bi bi-save"></i> Guardar Compra</button>
+        <a href="{% url 'purchasing:purchase_list' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var totalFormsInput = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+  var tbody = document.getElementById('detail-rows');
+
+  function attachRemove(btn) {
+    btn.addEventListener('click', function () {
+      var row = btn.closest('tr');
+      var deleteCheckbox = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      if (deleteCheckbox) {
+        deleteCheckbox.checked = true;
+        row.style.display = 'none';
+      } else {
+        row.remove();
+      }
+    });
+  }
+
+  document.querySelectorAll('#detail-table .remove-row').forEach(attachRemove);
+
+  document.getElementById('add-row').addEventListener('click', function () {
+    var formIndex = parseInt(totalFormsInput.value, 10);
+    var lastRow = tbody.querySelector('tr.detail-row:last-of-type');
+    var newRow = lastRow.cloneNode(true);
+
+    newRow.querySelectorAll('[name]').forEach(function (el) {
+      el.name = el.name.replace(/-\d+-/, '-' + formIndex + '-');
+      if (el.id) el.id = el.id.replace(/-\d+-/, '-' + formIndex + '-');
+      if (el.type === 'checkbox') {
+        el.checked = false;
+      } else if (el.tagName === 'SELECT') {
+        el.value = '';
+      } else if (el.name.endsWith('-quantity')) {
+        el.value = '1';
+      } else {
+        el.value = '';
+      }
+    });
+
+    newRow.querySelectorAll('input[type="hidden"][name$="-id"]').forEach(function (el) {
+      el.value = '';
+    });
+
+    attachRemove(newRow.querySelector('.remove-row'));
+    tbody.appendChild(newRow);
+    totalFormsInput.value = formIndex + 1;
+  });
+})();
+</script>
+{% endblock %}

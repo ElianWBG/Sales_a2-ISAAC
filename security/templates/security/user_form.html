@@ -1,0 +1,63 @@
+{% extends 'billing/base.html' %}
+
+{% block title %}Editar Usuario{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card shadow">
+      <div class="card-header bg-primary text-white"><h4>Editar Usuario</h4></div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Usuario</label>
+            {{ form.username }}
+            {% for error in form.username.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold">Nombres</label>
+                {{ form.first_name }}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold">Apellidos</label>
+                {{ form.last_name }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Correo</label>
+            {{ form.email }}
+          </div>
+
+          <div class="mb-3">
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label">Activo</label>
+            </div>
+          </div>
+
+          <!-- Rol -->
+          <div class="mb-4">
+            <label class="form-label fw-bold">Rol</label>
+            {{ form.role }}
+            {% for error in form.role.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <button type="submit" class="btn btn-primary">Guardar</button>
+          <a href="{% url 'security:user_list' %}" class="btn btn-secondary">Cancelar</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

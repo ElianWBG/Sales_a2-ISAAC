@@ -1,0 +1,55 @@
+{% extends 'billing/base.html' %}
+{% block title %}Compra #{{ purchase.id }}{% endblock %}
+{% block content %}
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+    <h4 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-receipt"></i> Compra #{{ purchase.id }}</h4>
+    <span class="badge bg-light text-dark">{{ purchase.purchase_date|date:"d/m/Y H:i" }}</span>
+  </div>
+  <div class="card-body p-4">
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <p class="mb-1"><strong>Proveedor:</strong> {{ purchase.supplier }}</p>
+        <p class="mb-1"><strong>N° Documento:</strong> {{ purchase.document_number }}</p>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Producto</th>
+            <th class="text-center">Cant.</th>
+            <th class="text-end">Costo unitario</th>
+            <th class="text-end">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for detail in purchase.details.all %}
+          <tr>
+            <td>{{ detail.product.name }}</td>
+            <td class="text-center">{{ detail.quantity }}</td>
+            <td class="text-end">${{ detail.unit_cost }}</td>
+            <td class="text-end">${{ detail.subtotal }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-center text-muted py-3">Sin líneas de detalle.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3" class="text-end fw-bold">Subtotal:</td><td class="text-end">${{ purchase.subtotal }}</td></tr>
+          <tr><td colspan="3" class="text-end fw-bold">IVA (15%):</td><td class="text-end">${{ purchase.tax }}</td></tr>
+          <tr class="table-warning"><td colspan="3" class="text-end fw-bold fs-5">TOTAL:</td><td class="text-end fw-bold fs-5">${{ purchase.total }}</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="d-flex gap-2 border-top pt-3">
+      <a href="{% url 'purchasing:purchase_list' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+      {% if perms.purchasing.delete_purchase %}
+      <a href="{% url 'purchasing:purchase_delete' purchase.pk %}" class="btn btn-danger"><i class="bi bi-trash"></i> Eliminar</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,398 @@
+{% extends 'billing/base.html' %}
+{% block title %}Productos{% endblock %}
+{% block content %}
+
+{# ── Modal: Seleccionar columnas visibles ── #}
+<div class="modal fade" id="colModal" tabindex="-1" aria-labelledby="colModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header text-white" style="background:linear-gradient(135deg,#1a56db,#0e3fa5);">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="colModalLabel">
+          <i class="bi bi-layout-three-columns"></i> Columnas visibles
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <p class="text-muted mb-0 small">
+            <i class="bi bi-info-circle me-1"></i>
+            Selecciona qué columnas deseas ver en la tabla y exportar.
+          </p>
+          <span class="badge bg-primary fs-6 px-3 py-2" id="colCounter">…</span>
+        </div>
+        <div class="row g-3" id="colChecklist"></div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between bg-light">
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="btnSelectAll">
+            <i class="bi bi-check-all"></i> Seleccionar todo
+          </button>
+          <button type="button" class="btn btn-outline-warning btn-sm" id="btnReset">
+            <i class="bi bi-arrow-counterclockwise"></i> Restablecer
+          </button>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cerrar</button>
+          <button type="button" class="btn btn-primary btn-sm px-4" id="btnApply">
+            <i class="bi bi-check-lg"></i> Aplicar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Cabecera ── #}
+<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+  <div>
+    <h2 class="mb-0">Productos</h2>
+    <small class="text-muted" id="colText">Cargando columnas…</small>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <button type="button" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1"
+            data-bs-toggle="modal" data-bs-target="#colModal">
+      <i class="bi bi-layout-three-columns"></i> Campos
+      <span class="badge bg-secondary ms-1" id="colBadge">…</span>
+    </button>
+    <a id="btnPdf" href="#" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1">
+      <i class="bi bi-file-earmark-pdf-fill"></i>PDF
+    </a>
+    <a id="btnExcel" href="#" class="btn btn-outline-success btn-sm d-inline-flex align-items-center gap-1">
+      <i class="bi bi-file-earmark-excel-fill"></i>Excel
+    </a>
+    {% if perms.billing.add_product %}
+    <a href="{% url 'billing:product_create' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg"></i> Nuevo
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Formulario de búsqueda ── #}
+<form method="get" class="card card-body shadow-sm border-0 mb-3 bg-light">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-3">
+      <label class="form-label form-label-sm fw-semibold mb-1">{{ search_form.name.label }}</label>
+      {{ search_form.name }}
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label form-label-sm fw-semibold mb-1">{{ search_form.brand.label }}</label>
+      {{ search_form.brand }}
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label form-label-sm fw-semibold mb-1">{{ search_form.group.label }}</label>
+      {{ search_form.group }}
+    </div>
+    <div class="col-12 col-md-2">
+      <label class="form-label form-label-sm fw-semibold mb-1">{{ search_form.supplier.label }}</label>
+      {{ search_form.supplier }}
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label form-label-sm fw-semibold mb-1">Precio ($)</label>
+      <div class="input-group input-group-sm">
+        {{ search_form.price_min }}
+        <span class="input-group-text px-1">—</span>
+        {{ search_form.price_max }}
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label form-label-sm fw-semibold mb-1">Stock</label>
+      <div class="input-group input-group-sm">
+        {{ search_form.stock_min }}
+        <span class="input-group-text px-1">—</span>
+        {{ search_form.stock_max }}
+      </div>
+    </div>
+    <div class="col-12 col-md-auto d-flex gap-2">
+      <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+      <a href="{% url 'billing:product_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+    </div>
+  </div>
+</form>
+
+{# ── Contador de resultados ── #}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <small class="text-muted">
+    {% if paginator.count == 1 %}1 producto encontrado
+    {% else %}{{ paginator.count }} productos encontrados{% endif %}
+  </small>
+  {% if is_paginated %}
+    <small class="text-muted">Página {{ page_obj.number }} de {{ paginator.num_pages }}</small>
+  {% endif %}
+</div>
+
+{# ── Tabla ── #}
+<div class="card shadow-sm border-0">
+  <div class="table-responsive">
+    <table class="table table-striped table-hover align-middle mb-0" id="productTable">
+      <thead class="table-dark">
+        <tr>
+          <th data-col="id" style="width:60px;">ID</th>
+          <th data-col="image" style="width:70px;">Imagen</th>
+          <th data-col="name">Nombre</th>
+          <th data-col="brand">Marca</th>
+          <th data-col="group">Grupo</th>
+          <th data-col="unit_price">Precio</th>
+          <th data-col="stock">Stock</th>
+          <th data-col="suppliers">Proveedores</th>
+          <th data-col="is_active">Estado</th>
+          <th data-col="created_at">Creado</th>
+          <th data-col="updated_at">Actualizado</th>
+          <th data-col="description">Descripción</th>
+          <th class="text-end" style="white-space:nowrap;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td data-col="id">
+            <span class="badge bg-secondary">#{{ item.id }}</span>
+          </td>
+          <td data-col="image">
+            {% if item.image %}
+              <img src="{{ item.image.url }}" alt="{{ item.name }}"
+                   style="width:48px;height:48px;object-fit:cover;"
+                   class="rounded border">
+            {% else %}
+              <span class="text-muted small fst-italic">Sin imagen</span>
+            {% endif %}
+          </td>
+          <td data-col="name" class="fw-semibold">{{ item.name }}</td>
+          <td data-col="brand">{{ item.brand.name }}</td>
+          <td data-col="group">{{ item.group.name }}</td>
+          <td data-col="unit_price" class="text-success fw-semibold">${{ item.unit_price }}</td>
+          <td data-col="stock">
+            <span class="badge {% if item.stock == 0 %}bg-danger{% elif item.stock < 5 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+              {{ item.stock }}
+            </span>
+          </td>
+          <td data-col="suppliers">
+            {% for s in item.suppliers.all %}
+              <span class="badge bg-info text-dark">{{ s.name }}</span>
+            {% empty %}
+              <span class="text-muted">—</span>
+            {% endfor %}
+          </td>
+          <td data-col="is_active">
+            {% if item.is_active %}
+              <span class="badge bg-success">Activo</span>
+            {% else %}
+              <span class="badge bg-secondary">Inactivo</span>
+            {% endif %}
+          </td>
+          <td data-col="created_at">
+            <small class="text-muted">{{ item.created_at|date:"d/m/Y" }}</small>
+          </td>
+          <td data-col="updated_at">
+            <small class="text-muted">{{ item.updated_at|date:"d/m/Y" }}</small>
+          </td>
+          <td data-col="description">
+            <span class="d-inline-block text-truncate" style="max-width:150px;" title="{{ item.description }}">
+              {{ item.description|default:"—" }}
+            </span>
+          </td>
+          <td class="text-end text-nowrap">
+            <a href="{% url 'billing:product_detail' item.pk %}" class="btn btn-sm btn-info" title="Ver" aria-label="Ver">
+              <i class="bi bi-eye"></i>
+            </a>
+            {% if perms.billing.change_product %}
+            <a href="{% url 'billing:product_update' item.pk %}" class="btn btn-sm btn-warning" title="Editar" aria-label="Editar">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+            {% if perms.billing.delete_product %}
+            <a href="{% url 'billing:product_delete' item.pk %}" class="btn btn-sm btn-danger" title="Eliminar" aria-label="Eliminar">
+              <i class="bi bi-trash"></i>
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="13" class="text-center py-4 text-muted">
+            <i class="bi bi-inbox display-4 d-block mb-2"></i>
+            No se encontraron productos.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ── Paginación ── #}
+{% if is_paginated %}
+<nav class="mt-3" aria-label="Paginación">
+  <ul class="pagination pagination-sm justify-content-center mb-0">
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="?{{ query_params }}&page=1">&laquo;</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+      <a class="page-link" href="{% if page_obj.has_previous %}?{{ query_params }}&page={{ page_obj.previous_page_number }}{% endif %}">&lsaquo;</a>
+    </li>
+    {% for num in paginator.page_range %}
+      {% if page_obj.number == num %}
+        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+      {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+        <li class="page-item"><a class="page-link" href="?{{ query_params }}&page={{ num }}">{{ num }}</a></li>
+      {% elif num == 1 or num == paginator.num_pages %}
+        <li class="page-item"><a class="page-link" href="?{{ query_params }}&page={{ num }}">{{ num }}</a></li>
+      {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+      {% endif %}
+    {% endfor %}
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="{% if page_obj.has_next %}?{{ query_params }}&page={{ page_obj.next_page_number }}{% endif %}">&rsaquo;</a>
+    </li>
+    <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+      <a class="page-link" href="?{{ query_params }}&page={{ paginator.num_pages }}">&raquo;</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
+
+<script>
+(function() {
+  'use strict';
+
+  const COL_ICONS = {
+    'id': 'bi-hash',
+    'image': 'bi-image',
+    'name': 'bi-tag',
+    'brand': 'bi-award',
+    'group': 'bi-grid',
+    'unit_price': 'bi-currency-dollar',
+    'stock': 'bi-boxes',
+    'suppliers': 'bi-truck',
+    'is_active': 'bi-toggle-on',
+    'created_at': 'bi-calendar',
+    'updated_at': 'bi-calendar',
+    'description': 'bi-card-text',
+  };
+
+  const COL_LABELS = {
+    'id': 'ID',
+    'image': 'Imagen',
+    'name': 'Nombre',
+    'brand': 'Marca',
+    'group': 'Grupo',
+    'unit_price': 'Precio',
+    'stock': 'Stock',
+    'suppliers': 'Proveedores',
+    'is_active': 'Estado',
+    'created_at': 'Creado',
+    'updated_at': 'Actualizado',
+    'description': 'Descripción',
+  };
+
+  const ALL_COLS = ['id', 'image', 'name', 'brand', 'group', 'unit_price', 'stock', 'suppliers', 'is_active', 'created_at', 'updated_at', 'description'];
+  const DEFAULT_COLS = ['image', 'name', 'brand', 'group', 'unit_price', 'stock', 'suppliers'];
+  const STORAGE_KEY = 'product_visible_cols_v1';
+  const BASE_PARAMS = '{{ query_params }}';
+
+  function getActiveCols() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (Array.isArray(stored) && stored.length > 0) {
+        const valid = stored.filter(k => ALL_COLS.includes(k));
+        if (valid.length > 0) return valid;
+      }
+    } catch (e) {}
+    return DEFAULT_COLS.slice();
+  }
+
+  function saveCols(cols) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cols));
+  }
+
+  function applyVisibility(cols) {
+    const colSet = {};
+    cols.forEach(c => colSet[c] = true);
+    document.querySelectorAll('[data-col]').forEach(el => {
+      el.style.display = colSet[el.dataset.col] ? '' : 'none';
+    });
+    updateExportLinks(cols);
+    updateBadge(cols.length);
+  }
+
+  function updateExportLinks(cols) {
+    const colsStr = cols.join(',');
+    const prefix = BASE_PARAMS ? BASE_PARAMS + '&' : '';
+    document.getElementById('btnPdf').href = `?${prefix}cols=${encodeURIComponent(colsStr)}&export=pdf`;
+    document.getElementById('btnExcel').href = `?${prefix}cols=${encodeURIComponent(colsStr)}&export=excel`;
+  }
+
+  function updateBadge(count) {
+    document.getElementById('colBadge').textContent = `${count} / ${ALL_COLS.length}`;
+    document.getElementById('colText').textContent = `Mostrando ${count} de ${ALL_COLS.length} columnas`;
+  }
+
+  function updateCounter() {
+    const checked = document.querySelectorAll('.col-checkbox:checked').length;
+    document.getElementById('colCounter').textContent = `${checked} de ${ALL_COLS.length}`;
+  }
+
+  function renderCheckboxes(activeCols) {
+    const html = ALL_COLS.map(col => `
+      <div class="col-6 col-md-4">
+        <label class="form-check-label d-flex align-items-center gap-2 border rounded p-3 h-100 w-100"
+               style="cursor:pointer; background:${activeCols.includes(col) ? '#e8f0fe' : ''}; border-color:${activeCols.includes(col) ? '#1a56db' : ''};transition:all .2s;">
+          <input type="checkbox" class="form-check-input col-checkbox flex-shrink-0" value="${col}"
+                 data-col="${col}" ${activeCols.includes(col) ? 'checked' : ''}>
+          <span>
+            <i class="bi ${COL_ICONS[col]} me-2" style="color:#1a56db;"></i>
+            <span class="fw-semibold">${COL_LABELS[col]}</span>
+          </span>
+        </label>
+      </div>
+    `).join('');
+    document.getElementById('colChecklist').innerHTML = html;
+  }
+
+  let activeCols = getActiveCols();
+
+  document.addEventListener('DOMContentLoaded', function() {
+    applyVisibility(activeCols);
+    renderCheckboxes(activeCols);
+
+    document.getElementById('colModal').addEventListener('show.bs.modal', function() {
+      renderCheckboxes(activeCols);
+      updateCounter();
+    });
+
+    document.getElementById('btnSelectAll').addEventListener('click', function() {
+      document.querySelectorAll('.col-checkbox').forEach(cb => cb.checked = true);
+      updateCounter();
+    });
+
+    document.getElementById('btnReset').addEventListener('click', function() {
+      activeCols = DEFAULT_COLS.slice();
+      saveCols(activeCols);
+      renderCheckboxes(activeCols);
+      applyVisibility(activeCols);
+      bootstrap.Modal.getInstance(document.getElementById('colModal')).hide();
+    });
+
+    document.getElementById('btnApply').addEventListener('click', function() {
+      const selected = Array.from(document.querySelectorAll('.col-checkbox:checked'))
+                            .map(cb => cb.value);
+      if (selected.length === 0) {
+        const counter = document.getElementById('colCounter');
+        counter.classList.add('bg-danger');
+        counter.textContent = '¡Selecciona al menos 1!';
+        setTimeout(() => {
+          counter.classList.remove('bg-danger');
+          updateCounter();
+        }, 2000);
+        return;
+      }
+      activeCols = selected;
+      saveCols(activeCols);
+      applyVisibility(activeCols);
+      bootstrap.Modal.getInstance(document.getElementById('colModal')).hide();
+    });
+  });
+})();
+</script>
+
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends 'billing/base.html' %}
+
+{% block title %}Permiso{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card shadow">
+      <div class="card-header bg-primary text-white"><h4>Permiso</h4></div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">{{ form.name.label }}</label>
+            {{ form.name }}
+            {% for error in form.name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">{{ form.codename.label }}</label>
+            {{ form.codename }}
+            {% for error in form.codename.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+            <small class="text-muted">Ejemplo: puede_aprobar_factura</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">{{ form.content_type.label }}</label>
+            {{ form.content_type }}
+            {% for error in form.content_type.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+
+          <button type="submit" class="btn btn-primary">Guardar</button>
+          <a href="{% url 'security:permission_list' %}" class="btn btn-secondary">Cancelar</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

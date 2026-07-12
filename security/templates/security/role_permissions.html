@@ -1,0 +1,156 @@
+{% extends 'billing/base.html' %}
+{% block title %}Gestión de Roles y Permisos{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center gap-2 mb-4">
+  <i class="bi bi-shield-lock-fill text-warning fs-3"></i>
+  <h2 class="mb-0">Gestión de Roles y Permisos</h2>
+</div>
+
+<div class="row g-0 shadow-sm rounded overflow-hidden" style="min-height:70vh;">
+
+  {# ── Sidebar: lista de roles ── #}
+  <div class="col-md-3 col-lg-2 bg-dark p-0">
+    <div class="list-group list-group-flush">
+      {% for r in roles %}
+      <a href="{% url 'security:role_permissions' r.pk %}"
+         class="list-group-item list-group-item-action bg-dark text-light border-secondary py-3 {% if r.pk == role.pk %}active bg-primary{% endif %}">
+        {{ r.name }}
+      </a>
+      {% empty %}
+      <div class="p-3 text-light small">No hay roles todavía.</div>
+      {% endfor %}
+    </div>
+    <div class="p-3">
+      <a href="{% url 'security:group_create' %}" class="btn btn-outline-light btn-sm w-100">
+        <i class="bi bi-plus-lg"></i> Nuevo rol
+      </a>
+    </div>
+  </div>
+
+  {# ── Panel derecho: matriz de permisos del rol seleccionado ── #}
+  <div class="col-md-9 col-lg-10 bg-white p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+      <div>
+        <h4 class="mb-0">{{ role.name }}</h4>
+        <small class="text-muted">{{ role.permissions.count }} permisos asignados · {{ role.user_set.count }} usuarios con este rol</small>
+      </div>
+      <a href="{% url 'security:group_update' role.pk %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-pencil"></i> Renombrar rol
+      </a>
+    </div>
+
+    <form method="post" id="permForm">
+      {% csrf_token %}
+      <div class="accordion" id="modulesAccordion">
+        {% for module_name, models_dict in modules.items %}
+        {% with module_id=forloop.counter %}
+        <div class="accordion-item mb-2 border-0 shadow-sm">
+          <h2 class="accordion-header">
+            <button class="accordion-button {% if not forloop.first %}collapsed{% endif %} fw-semibold"
+                    type="button" data-bs-toggle="collapse" data-bs-target="#mod{{ module_id }}">
+              <span class="flex-grow-1">{{ module_name }}</span>
+              <span class="badge bg-primary rounded-pill me-3 module-badge" data-module="{{ module_id }}">…</span>
+            </button>
+          </h2>
+          <div id="mod{{ module_id }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+               data-bs-parent="#modulesAccordion">
+            <div class="accordion-body p-0">
+              <table class="table table-striped align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Modelo</th>
+                    <th class="text-center">Ver</th>
+                    <th class="text-center">Crear</th>
+                    <th class="text-center">Editar</th>
+                    <th class="text-center">Eliminar</th>
+                    <th class="text-center">Todos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for model_name, actions in models_dict.items %}
+                  <tr>
+                    <td class="fw-semibold">{{ model_name }}</td>
+                    {% for action_label, info in actions %}
+                    <td class="text-center">
+                      <input type="checkbox" class="form-check-input perm-checkbox" name="permisos"
+                             value="{{ info.perm.id }}" data-module="{{ module_id }}"
+                             {% if info.checked %}checked{% endif %}>
+                    </td>
+                    {% endfor %}
+                    <td class="text-center">
+                      <input type="checkbox" class="form-check-input row-select-all" data-module="{{ module_id }}">
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        {% endwith %}
+        {% empty %}
+        <p class="text-muted">No hay módulos con permisos disponibles.</p>
+        {% endfor %}
+      </div>
+
+      <div class="d-flex justify-content-end gap-2 mt-4">
+        <a href="{% url 'security:group_list' %}" class="btn btn-outline-secondary px-4">Volver</a>
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="bi bi-check-lg"></i> Guardar cambios
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function updateBadge(moduleId) {
+    const checkboxes = document.querySelectorAll(`.perm-checkbox[data-module="${moduleId}"]`);
+    const checked = document.querySelectorAll(`.perm-checkbox[data-module="${moduleId}"]:checked`).length;
+    const badge = document.querySelector(`.module-badge[data-module="${moduleId}"]`);
+    if (badge) badge.textContent = `${checked} / ${checkboxes.length}`;
+  }
+
+  function updateAllBadges() {
+    document.querySelectorAll('.module-badge').forEach(b => updateBadge(b.dataset.module));
+  }
+
+  // "Todos" por fila: marca/desmarca los 4 checkboxes de esa fila
+  document.querySelectorAll('.row-select-all').forEach(rowCb => {
+    rowCb.addEventListener('change', function () {
+      const row = this.closest('tr');
+      row.querySelectorAll('.perm-checkbox').forEach(cb => { cb.checked = rowCb.checked; });
+      updateBadge(this.dataset.module);
+    });
+  });
+
+  // Cualquier checkbox individual actualiza el badge de su módulo y el estado del "Todos" de su fila
+  document.querySelectorAll('.perm-checkbox').forEach(cb => {
+    cb.addEventListener('change', function () {
+      updateBadge(this.dataset.module);
+      const row = this.closest('tr');
+      const all = row.querySelectorAll('.perm-checkbox');
+      const checked = row.querySelectorAll('.perm-checkbox:checked');
+      const rowAll = row.querySelector('.row-select-all');
+      if (rowAll) rowAll.checked = (all.length === checked.length);
+    });
+  });
+
+  // Estado inicial de los "Todos" por fila + badges
+  document.querySelectorAll('tr').forEach(row => {
+    const all = row.querySelectorAll('.perm-checkbox');
+    if (!all.length) return;
+    const checked = row.querySelectorAll('.perm-checkbox:checked');
+    const rowAll = row.querySelector('.row-select-all');
+    if (rowAll) rowAll.checked = (all.length === checked.length);
+  });
+
+  updateAllBadges();
+})();
+</script>
+
+{% endblock %}
