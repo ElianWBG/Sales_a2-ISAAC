@@ -1,5 +1,6 @@
 {% extends 'billing/base.html' %}
 {% load widget_tweaks %}
+{% load l10n %}
 {% block title %}Registrar Pago - Cuota {{ cuota.numero }}{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
@@ -17,14 +18,35 @@
           {% if form.non_field_errors %}
             <div class="alert alert-danger">{{ form.non_field_errors }}</div>
           {% endif %}
-          {% for field in form %}
-            <div class="mb-3">
-              <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
-              {% render_field field class="form-control" %}
-              {% if field.help_text %}<small class="text-muted d-block mt-1">{{ field.help_text }}</small>{% endif %}
-              {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="{{ form.fecha.id_for_label }}">{{ form.fecha.label }}</label>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="chk-fecha-hoy" checked>
+              <label class="form-check-label" for="chk-fecha-hoy">Pagar con fecha de hoy</label>
             </div>
-          {% endfor %}
+            {% render_field form.fecha class="form-control" %}
+            {% if form.fecha.help_text %}<small class="text-muted d-block mt-1">{{ form.fecha.help_text }}</small>{% endif %}
+            {% for error in form.fecha.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="{{ form.valor.id_for_label }}">{{ form.valor.label }}</label>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="chk-valor-completo" checked>
+              <label class="form-check-label" for="chk-valor-completo">Pagar el saldo completo (${{ cuota.saldo }})</label>
+            </div>
+            {% render_field form.valor class="form-control" %}
+            {% if form.valor.help_text %}<small class="text-muted d-block mt-1">{{ form.valor.help_text }}</small>{% endif %}
+            {% for error in form.valor.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="{{ form.observacion.id_for_label }}">{{ form.observacion.label }}</label>
+            {% render_field form.observacion class="form-control" %}
+            {% if form.observacion.help_text %}<small class="text-muted d-block mt-1">{{ form.observacion.help_text }}</small>{% endif %}
+            {% for error in form.observacion.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
           <div class="d-flex gap-2 mt-4">
             <button type="submit" class="btn btn-primary px-4">Guardar Pago</button>
             <a href="{% url 'creditos_ventas:cuotas_factura' cuota.factura.pk %}" class="btn btn-outline-secondary px-4">Cancelar</a>
@@ -34,4 +56,46 @@
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  var chkFechaHoy = document.getElementById('chk-fecha-hoy');
+  var fechaInput = document.getElementById('{{ form.fecha.id_for_label }}');
+  var chkValorCompleto = document.getElementById('chk-valor-completo');
+  var valorInput = document.getElementById('{{ form.valor.id_for_label }}');
+  // Saldo actual sin coma decimal de localización (evita el mismo bug del IVA)
+  var saldoActual = '{{ cuota.saldo|unlocalize }}';
+
+  function hoyISO() {
+    var d = new Date();
+    var mes = String(d.getMonth() + 1).padStart(2, '0');
+    var dia = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + mes + '-' + dia;
+  }
+
+  function toggleFecha() {
+    if (chkFechaHoy.checked) {
+      fechaInput.value = hoyISO();
+      fechaInput.readOnly = true;
+    } else {
+      fechaInput.readOnly = false;
+    }
+  }
+
+  function toggleValor() {
+    if (chkValorCompleto.checked) {
+      valorInput.value = saldoActual;
+      valorInput.readOnly = true;
+    } else {
+      valorInput.readOnly = false;
+    }
+  }
+
+  chkFechaHoy.addEventListener('change', toggleFecha);
+  chkValorCompleto.addEventListener('change', toggleValor);
+
+  toggleFecha();
+  toggleValor();
+})();
+</script>
 {% endblock %}

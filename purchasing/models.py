@@ -17,6 +17,18 @@ class Purchase(models.Model):
     tax = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Impuesto')
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     is_active = models.BooleanField(default=True)
+    tipo_pago = models.CharField(
+        max_length=10,
+        choices=[("CONTADO", "CONTADO"), ("CREDITO", "CREDITO")],
+        default="CONTADO",
+        verbose_name="Tipo de pago",
+    )
+    saldo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    estado = models.CharField(
+        max_length=15,
+        choices=[("PENDIENTE", "PENDIENTE"), ("PAGADA", "PAGADA")],
+        default="PENDIENTE",
+    )
 
     class Meta:
         verbose_name = 'Purchase'

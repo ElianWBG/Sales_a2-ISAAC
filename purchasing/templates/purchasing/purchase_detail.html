@@ -12,6 +12,13 @@
         <p class="mb-1"><strong>Proveedor:</strong> {{ purchase.supplier }}</p>
         <p class="mb-1"><strong>N° Documento:</strong> {{ purchase.document_number }}</p>
       </div>
+      <div class="col-md-6 text-md-end">
+        <p class="mb-1">
+          <strong>Tipo de pago:</strong> {{ purchase.tipo_pago }}
+          <span class="badge {% if purchase.estado == 'PAGADA' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ purchase.estado }}</span>
+        </p>
+        {% if purchase.tipo_pago == 'CREDITO' %}<p class="mb-1"><strong>Saldo pendiente:</strong> ${{ purchase.saldo }}</p>{% endif %}
+      </div>
     </div>
 
     <div class="table-responsive">
@@ -47,6 +54,10 @@
     <div class="d-flex gap-2 border-top pt-3">
       <a href="{% url 'purchasing:purchase_list' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
       <a href="{% url 'purchasing:purchase_pdf' purchase.pk %}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-printer"></i> Imprimir Compra</a>
+      {% if purchase.tipo_pago == 'CREDITO' %}
+      <a href="{% url 'creditos_compras:cuotas_compra' purchase.pk %}" class="btn btn-outline-dark"><i class="bi bi-calendar-check"></i> Ver Cuotas</a>
+      <a href="{% url 'creditos_compras:plan_pagos_pdf' purchase.pk %}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-printer"></i> Imprimir Plan de Pagos</a>
+      {% endif %}
       {% if perms.purchasing.delete_purchase %}
       <a href="{% url 'purchasing:purchase_delete' purchase.pk %}" class="btn btn-danger"><i class="bi bi-trash"></i> Eliminar</a>
       {% endif %}

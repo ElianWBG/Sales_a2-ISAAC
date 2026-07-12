@@ -26,6 +26,7 @@
         {% endif %}
         {% if perms.purchasing.view_purchase %}
         <li class="nav-item"><a class="nav-link" href="{% url 'purchasing:purchase_list' %}">Compras</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'creditos_compras:cuotas_pendientes' %}">Cuotas Pendientes</a></li>
         {% endif %}
         {% if perms.billing.view_productgroup %}
         <li class="nav-item"><a class="nav-link" href="{% url 'billing:productgroup_list' %}">Grupos</a></li>

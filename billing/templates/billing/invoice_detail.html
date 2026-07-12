@@ -59,6 +59,7 @@
     <a href="{% url 'billing:invoice_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">Imprimir Factura</a>
     {% if invoice.tipo_pago == 'CREDITO' %}
     <a href="{% url 'creditos_ventas:cuotas_factura' invoice.pk %}" class="btn btn-outline-dark">Ver Cuotas</a>
+    <a href="{% url 'creditos_ventas:plan_pagos_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">Imprimir Plan de Pagos</a>
     {% endif %}
     {% if perms.billing.delete_invoice %}
     <a href="{% url 'billing:invoice_delete' invoice.pk %}" class="btn btn-danger">Eliminar</a>

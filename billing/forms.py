@@ -1,4 +1,5 @@
 from django import forms
+from django.forms import BaseInlineFormSet
 from .models import (
     Brand, ProductGroup, Supplier, Product, Customer, Invoice, InvoiceDetail,
     ConfiguracionSistema,
@@ -155,6 +156,12 @@ class ProductForm(forms.ModelForm):
             raise forms.ValidationError('El precio unitario debe ser mayor que cero.')
         return price
 
+    def clean_stock(self):
+        stock = self.cleaned_data.get('stock')
+        if stock is not None and stock < 0:
+            raise forms.ValidationError('El stock no puede ser negativo.')
+        return stock
+
 class CustomerForm(forms.ModelForm):
     class Meta:
         model = Customer
@@ -191,10 +198,35 @@ class InvoiceForm(forms.ModelForm):
         return cleaned
 
 
+class BaseInvoiceDetailFormSet(BaseInlineFormSet):
+    """
+    Rechaza la factura COMPLETA si cualquier línea pide más cantidad de
+    producto de la disponible en stock (validación de primera línea de
+    defensa; la vista además revalida con locking dentro de la transacción,
+    ver invoice_create).
+    """
+    def clean(self):
+        super().clean()
+        errores = []
+        for form in self.forms:
+            if not hasattr(form, 'cleaned_data') or form.cleaned_data.get('DELETE'):
+                continue
+            product = form.cleaned_data.get('product')
+            quantity = form.cleaned_data.get('quantity')
+            if product and quantity:
+                if quantity > product.stock:
+                    errores.append(
+                        f'"{product.name}": pediste {quantity}, pero solo hay {product.stock} en stock.'
+                    )
+        if errores:
+            raise forms.ValidationError(errores)
+
+
 InvoiceDetailFormSet = forms.inlineformset_factory(
     Invoice,
     InvoiceDetail,
     fields=['product', 'quantity', 'unit_price'],
+    formset=BaseInvoiceDetailFormSet,
     extra=1,
     can_delete=True,
     widgets={

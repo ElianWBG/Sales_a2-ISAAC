@@ -1,0 +1,45 @@
+{% extends 'billing/base.html' %}
+{% block title %}Historial de Pagos{% endblock %}
+{% block content %}
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-dark text-white py-3">
+    <h4 class="mb-0 d-flex align-items-center gap-2">
+      <i class="bi bi-clock-history"></i>
+      {% if cuota %}Historial de Pagos - Cuota {{ cuota.numero }} (Compra #{{ compra.id }})
+      {% else %}Historial de Pagos - Compra #{{ compra.id }}{% endif %}
+    </h4>
+  </div>
+  <div class="card-body p-4">
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead class="table-dark">
+          <tr>
+            {% if not cuota %}<th class="text-center">Cuota</th>{% endif %}
+            <th>Fecha</th>
+            <th class="text-end">Valor</th>
+            <th>Observación</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pago in pagos %}
+          <tr>
+            {% if not cuota %}<td class="text-center">{{ pago.cuota.numero }}</td>{% endif %}
+            <td>
+              {{ pago.fecha|date:"d/m/Y" }}
+              {% if pago.fecha > pago.cuota.fecha_vencimiento %}<span class="badge bg-danger ms-1">⚠ Pagado con retraso</span>{% endif %}
+            </td>
+            <td class="text-end">${{ pago.valor }}</td>
+            <td>{{ pago.observacion|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="{% if cuota %}3{% else %}4{% endif %}" class="text-center text-muted py-3">Sin pagos registrados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <a href="{% url 'creditos_compras:cuotas_compra' compra.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver a cuotas
+    </a>
+  </div>
+</div>
+{% endblock %}

@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.validators import MinValueValidator
 from shared.validators import validate_cedula_ec
 
 
@@ -51,7 +52,7 @@ class Product(models.Model):
     group = models.ForeignKey(ProductGroup, on_delete=models.PROTECT, related_name='products', verbose_name='Grupo')
     suppliers = models.ManyToManyField(Supplier, related_name='products', blank=True, verbose_name='Proveedor')
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Precio unitario')
-    stock = models.IntegerField(default=0)
+    stock = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     image = models.ImageField(upload_to='products/', blank=True, null=True, verbose_name='Imagen')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     created_at = models.DateTimeField(auto_now_add=True)

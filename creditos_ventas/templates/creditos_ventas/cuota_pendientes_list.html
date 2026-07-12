@@ -6,6 +6,10 @@
     <h4 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-exclamation-circle"></i> Cuotas Pendientes</h4>
   </div>
   <div class="card-body p-4">
+    <p class="text-muted small mb-3">
+      <span class="badge bg-danger">&nbsp;</span> Vencida &nbsp;
+      <span class="badge bg-white border">&nbsp;</span> Al día
+    </p>
     <div class="table-responsive">
       <table class="table table-bordered align-middle">
         <thead class="table-dark">
@@ -21,11 +25,14 @@
         </thead>
         <tbody>
           {% for cuota in cuotas %}
-          <tr>
+          <tr class="{% if cuota.fecha_vencimiento < hoy %}table-danger{% endif %}">
             <td><a href="{% url 'creditos_ventas:cuotas_factura' cuota.factura.pk %}">#{{ cuota.factura.id }}</a></td>
             <td>{{ cuota.factura.customer }}</td>
             <td class="text-center">{{ cuota.numero }}</td>
-            <td>{{ cuota.fecha_vencimiento|date:"d/m/Y" }}</td>
+            <td>
+              {{ cuota.fecha_vencimiento|date:"d/m/Y" }}
+              {% if cuota.fecha_vencimiento < hoy %}<span class="badge bg-danger ms-1">Vencida</span>{% endif %}
+            </td>
             <td class="text-end">${{ cuota.valor }}</td>
             <td class="text-end">${{ cuota.saldo }}</td>
             <td class="text-center">

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'purchasing',
     'security',
     'creditos_ventas',
+    'creditos_compras',
     'widget_tweaks',
     'django_extensions',
 ]

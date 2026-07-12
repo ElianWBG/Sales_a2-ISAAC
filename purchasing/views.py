@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
+from django.db import transaction
+from django.db.models import ProtectedError
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -114,7 +116,19 @@ def purchase_create(request):
             purchase.subtotal = subtotal
             purchase.tax = subtotal * config.iva_porcentaje / Decimal('100')
             purchase.total = purchase.subtotal + purchase.tax
-            purchase.save()
+
+            with transaction.atomic():
+                if purchase.tipo_pago == 'CONTADO':
+                    purchase.saldo = 0
+                    purchase.estado = 'PAGADA'
+                else:  # CREDITO
+                    purchase.saldo = purchase.total
+                    purchase.estado = 'PENDIENTE'
+                purchase.save()
+
+                if purchase.tipo_pago == 'CREDITO':
+                    from creditos_compras.services import generar_cuotas
+                    generar_cuotas(purchase, form.cleaned_data['num_cuotas'])
 
             messages.success(request, f'Compra #{purchase.id} creada! Total: ${purchase.total}')
             return redirect('purchasing:purchase_list')
@@ -156,8 +170,11 @@ def purchase_delete(request, pk):
     purchase = get_object_or_404(Purchase, pk=pk)
     if request.method == 'POST':
         purchase_id = purchase.id
-        purchase.delete()
-        messages.success(request, f'Compra #{purchase_id} eliminada!')
+        try:
+            purchase.delete()
+            messages.success(request, f'Compra #{purchase_id} eliminada!')
+        except ProtectedError:
+            messages.error(request, 'No se puede eliminar la compra porque tiene cuotas de crédito asociadas.')
         return redirect('purchasing:purchase_list')
     return render(request, 'purchasing/purchase_confirm_delete.html', {'object': purchase})
 

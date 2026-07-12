@@ -1,24 +1,27 @@
-# 🧾 Sistema de Ventas y Facturación (Sales_A2)
+# 🧾 Sistema de Ventas, Compras y Créditos (Sales_A2)
 
-Aplicación web desarrollada en **Django** para la gestión integral de un sistema de ventas y facturación. Permite administrar marcas, grupos de productos, proveedores, productos, clientes e invoices, con cálculo automático de impuestos (IVA al 15%), búsqueda avanzada, exportación a PDF/Excel, gestión de imágenes de productos y selección dinámica de columnas visibles en los listados.
+Aplicación web desarrollada en **Django** para la gestión integral de un sistema de ventas y compras con crédito. Permite administrar marcas, grupos de productos, proveedores, productos, clientes, facturas y compras, con **IVA configurable**, **ventas y compras a crédito con cuotas mensuales**, **seguridad basada en roles y permisos granulares**, búsqueda avanzada, exportación a PDF/Excel, gestión de imágenes de productos y selección dinámica de columnas visibles en los listados.
 
 > **Proyecto académico** — Ingeniería de Software, Universidad Estatal de Milagro (UNEMI)
 >
 > **Participantes:** Isaac Silva, Marcos Robinson  
 > **Universidad:** UNEMI  
-> **Fecha:** 22 de junio de 2026
+> **Fecha:** 22 de junio de 2026 (actualizado julio 2026)
 
 ---
 
-intalacion correcta --
+instalacion correcta --
 
-python -m venv ent_sales_A2          # 1. crear venv fresco
-ent_sales_A2\Scripts\activate        # 2. activarlo
-pip install -r requirements.txt      # 3. instalar dependencias
-python manage.py runserver           # 4. ¡correr! (sin migrate, sin createsuperuser)
+python -m venv ent_sales          # 1. crear venv fresco
+ent_sales\Scripts\activate        # 2. activarlo
+pip install -r requirements.txt   # 3. instalar dependencias
+python manage.py migrate          # 4. aplicar migraciones
+python manage.py createsuperuser  # 5. crear el primer usuario (Administrador)
+python manage.py runserver        # 6. ¡correr!
 
 ## 📑 Tabla de contenidos
 
+- [Apps del proyecto](#-apps-del-proyecto)
 - [Características](#-características)
 - [Tecnologías](#-tecnologías)
 - [Estructura del proyecto](#-estructura-del-proyecto)
@@ -29,26 +32,47 @@ python manage.py runserver           # 4. ¡correr! (sin migrate, sin createsupe
 - [Uso de la aplicación](#-uso-de-la-aplicación)
 - [Decisiones de diseño](#-decisiones-de-diseño)
 - [Notas y pendientes](#-notas-y-pendientes)
+- [Guía de consultas ORM](#-guía-de-consultas-orm-referencia)
 - [Autores](#-autores)
+
+---
+
+## 🧱 Apps del proyecto
+
+| App               | Responsabilidad                                                                 |
+|-------------------|----------------------------------------------------------------------------------|
+| `billing`         | Catálogo (Marcas, Grupos, Proveedores, Productos, Clientes), Facturas, Configuración del sistema (IVA). |
+| `purchasing`      | Compras a proveedores (cabecera + detalle), reporte de costos.                   |
+| `security`        | Autenticación, Usuarios, Roles (Group) y matriz de Permisos granular por módulo. |
+| `creditos_ventas` | Cuotas y pagos de **Facturas a crédito** (Fila 1 del caso de estudio).           |
+| `creditos_compras`| Cuotas y pagos de **Compras a crédito**, mismo patrón que `creditos_ventas`.     |
+| `shared`          | Utilidades compartidas entre apps: mixins, validadores, decoradores, envío de correos, middleware. No está en `INSTALLED_APPS` (no tiene modelos propios). |
 
 ---
 
 ## ✨ Características
 
-- **CRUD completo** para 6 módulos: Marcas, Grupos de productos, Proveedores, Productos, Clientes y Facturas.
+- **CRUD completo** para Marcas, Grupos de productos, Proveedores, Productos, Clientes, Facturas y Compras.
+- **Ventas y compras a crédito**: al facturar/comprar se elige `CONTADO` o `CRÉDITO`; si es crédito se generan cuotas mensuales automáticas que suman **exacto** el total (el redondeo se absorbe en la última cuota).
+- **Pago de cuotas**: individual (con checkboxes de "saldo completo" / "fecha de hoy" para no escribir a mano) o **en lote** (selecciona varias cuotas con checkbox y paga todas de una vez; si cualquiera falla la validación, no se guarda nada del lote).
+- **Consulta de cuotas pendientes** (global, sin entrar a una factura/compra puntual), con cuotas vencidas resaltadas en rojo.
+- **Historial de pagos** por cuota o por factura/compra, con indicador visual de pago atrasado (comparando la fecha del pago contra el vencimiento de la cuota).
+- **PDF de Plan de Pagos / Estado de Cuenta** (separado del PDF de la Factura/Compra), que refleja el estado de cuotas y pagos al momento de imprimirlo.
+- **IVA configurable** desde una pantalla de Configuración del Sistema (`ConfiguracionSistema`), en vez de un porcentaje fijo en el código — se refleja tanto en el cálculo del backend como en el cálculo en vivo (JS) al armar una factura/compra.
+- **Validación de stock**: el formset de detalle de factura rechaza la línea completa si se pide más cantidad que la disponible (mensaje claro con el producto y el faltante), revalidado con `select_for_update()` dentro de la transacción para blindar contra condiciones de carrera. El campo `stock` no permite valores negativos (validador + `clean_stock` en el formulario).
+- **Autocompletado de precio/costo** al elegir un producto en una línea de factura/compra (fetch a un endpoint JSON), sin sobrescribir si el usuario ya editó el campo a mano.
+- **Alta rápida de Cliente/Proveedor** desde un modal (AJAX) al armar una factura/compra, sin perder las líneas ya cargadas.
+- **Seguridad basada en roles y permisos**: los usuarios se crean únicamente por el Administrador (con contraseña temporal enviada por correo y cambio obligatorio en el primer login); no hay auto-registro público. Cada rol (`Group`) tiene una matriz de permisos granular (ver/crear/editar/eliminar por módulo) editable desde `security:role_permissions`; el navbar y las vistas respetan esos permisos automáticamente, sin depender del nombre del rol.
 - **Vistas detalladas** (DetailView) para todos los módulos con información completa de cada registro.
-- **Sistema de facturación** con líneas de detalle dinámicas (agregar/quitar productos en la misma pantalla).
-- **Cálculo automático** de subtotal, IVA (15%) y total al guardar una factura.
-- **Autenticación de usuarios**: registro (signup), inicio y cierre de sesión.
-- **Acceso protegido**: todas las pantallas requieren sesión iniciada (LoginRequiredMixin).
+- **Cálculo automático** de subtotal, IVA y total al guardar una factura o compra, con resumen en vivo (JS) antes de guardar.
 - **Búsqueda y filtros avanzados** en todos los listados (por nombre, estado, rango de precios/fechas, etc.).
 - **Exportación de datos** a PDF y Excel desde cualquier listado respetando las columnas seleccionadas.
-- **Selectores de columnas dinámicos** en todos los listados con persistencia en localStorage.
+- **Selectores de columnas dinámicos** en todos los listados con persistencia en `localStorage`.
 - **Gestión de imágenes** de productos con vista previa en los listados.
 - **Interfaz responsiva** con Bootstrap 5 e iconos con Bootstrap Icons.
-- **Panel de administración** de Django habilitado para todos los modelos.
+- **Panel de administración** de Django habilitado para todos los modelos, incluidas las cuotas y pagos.
 - **Validación de datos** con validadores customizados (ej: cédula ecuatoriana en clientes).
-- **Protección de integridad referencial** con ON_DELETE PROTECT/CASCADE apropiados.
+- **Protección de integridad referencial** con `on_delete` `PROTECT`/`CASCADE` apropiados, y manejo amigable de `ProtectedError` al intentar borrar (mensaje claro en vez de pantalla de error técnica).
 
 ---
 
@@ -65,6 +89,7 @@ python manage.py runserver           # 4. ¡correr! (sin migrate, sin createsupe
 | Exportación PDF   | ReportLab 4.2.5                        |
 | Exportación Excel | openpyxl 3.1.5                         |
 | Gestión imágenes  | Pillow 12.2.0                          |
+| Utilidades dev    | django-extensions 4.1                  |
 | Idioma / Zona     | Español (es-ec) / UTC                  |
 
 ---
@@ -74,53 +99,84 @@ python manage.py runserver           # 4. ¡correr! (sin migrate, sin createsupe
 ```
 Sales_A2/
 ├── config/                     # Configuración del proyecto Django
-│   ├── settings.py             # Ajustes (BD, apps, idioma, login)
-│   ├── urls.py                 # Rutas raíz (admin, accounts, billing)
+│   ├── settings.py             # Ajustes (BD, apps, idioma, login, correo SMTP)
+│   ├── urls.py                 # Rutas raíz (admin, accounts, security, purchases, creditos-ventas, creditos-compras, billing)
 │   ├── asgi.py / wsgi.py       # Puntos de entrada del servidor
 │   └── __init__.py
 │
-├── billing/                    # App principal (lógica de negocio)
-│   ├── migrations/             # Migraciones de la base de datos
-│   ├── templates/billing/      # Plantillas HTML del módulo
-│   │   ├── base.html           # Plantilla base (navbar, footer, mensajes)
-│   │   ├── *_list.html         # Listados con selectores de columnas dinámicos
-│   │   ├── *_detail.html       # Vistas detalladas de cada entidad
-│   │   ├── *_form.html         # Formularios de crear/editar
-│   │   └── *_confirm_delete.html  # Confirmaciones de borrado
-│   ├── models.py               # Modelos (8 entidades)
-│   ├── views.py                # Vistas (FBV + CBV) con ExportMixin
-│   ├── forms.py                # Formularios y formset de factura + SearchForms
-│   ├── mixins.py               # ExportMixin (PDF/Excel con ReportLab/openpyxl)
-│   ├── urls.py                 # Rutas de la app billing
-│   └── admin.py                # Registro de modelos en el admin
+├── billing/                    # Catálogo, Facturas y Configuración del sistema
+│   ├── migrations/
+│   ├── templates/billing/      # Incluye base.html (navbar) usado por TODAS las apps
+│   ├── models.py               # Brand, ProductGroup, Supplier, Product, Customer,
+│   │                           #   CustomerProfile, Invoice, InvoiceDetail, ConfiguracionSistema
+│   ├── views.py                # Vistas (FBV + CBV) con ExportMixin y PermissionRequiredMixin
+│   ├── forms.py                # Formularios y formset de factura (con validación de stock) + SearchForms
+│   ├── mixins.py                # ExportMixin (PDF/Excel con ReportLab/openpyxl)
+│   ├── invoice_pdf.py           # PDF de la Factura (documento fijo)
+│   ├── urls.py
+│   └── admin.py
 │
-├── shared/                     # Utilidades compartidas
-│   ├── validators.py           # Validadores customizados (cédula EC)
-│   ├── mixins.py               # Mixins reutilizables
-│   └── decorators.py           # Decoradores personalizados
+├── purchasing/                  # Compras a proveedores
+│   ├── migrations/
+│   ├── templates/purchasing/
+│   ├── models.py                # Purchase (con tipo_pago/saldo/estado), PurchaseDetail
+│   ├── views.py
+│   ├── forms.py                 # PurchaseForm (tipo_pago/num_cuotas), PurchaseDetailFormSet
+│   ├── purchase_pdf.py          # PDF de la Compra (documento fijo)
+│   └── urls.py
 │
-├── templates/
-│   └── registration/           # Plantillas de autenticación
-│       ├── login.html
-│       └── signup.html
+├── security/                    # Autenticación, Usuarios, Roles y Permisos
+│   ├── migrations/
+│   ├── templates/security/
+│   ├── models.py                # PerfilUsuario (must_change_password)
+│   ├── views.py                 # Login/Logout, CRUD de Usuarios/Roles, matriz de Permisos
+│   ├── forms.py                 # AdminUserCreateForm, UserUpdateForm, CambiarPasswordForm, GroupForm
+│   ├── utils.py                 # Generación de username estilo universidad
+│   ├── management/commands/setup_roles.py  # Crea los roles base con sus permisos
+│   └── urls.py
 │
-├── media/
-│   └── products/               # Imágenes subidas de productos
+├── creditos_ventas/              # Cuotas y pagos de Facturas a crédito
+│   ├── migrations/
+│   ├── templates/creditos_ventas/
+│   ├── models.py                 # CuotaVenta, PagoCuotaVenta
+│   ├── services.py               # generar_cuotas, recalcular_cuota, recalcular_factura
+│   ├── views.py                  # Listados, pago individual/lote, historial, PDF Plan de Pagos
+│   ├── forms.py                  # PagoCuotaVentaForm
+│   ├── plan_pagos_pdf.py
+│   └── urls.py
 │
-├── static/                     # Archivos estáticos (CSS/JS/imágenes)
-├── dbsalesA2.sqlite3           # Base de datos SQLite
-├── manage.py                   # Utilidad de gestión de Django
-├── requirements.txt            # Dependencias del proyecto
-└── README.md                   # Este archivo
+├── creditos_compras/              # Cuotas y pagos de Compras a crédito (mismo patrón)
+│   ├── migrations/
+│   ├── templates/creditos_compras/
+│   ├── models.py                  # CuotaCompra, PagoCuotaCompra
+│   ├── services.py                # generar_cuotas, recalcular_cuota, recalcular_compra
+│   ├── views.py
+│   ├── forms.py                   # PagoCuotaCompraForm
+│   ├── plan_pagos_pdf.py
+│   └── urls.py
+│
+├── shared/                       # Utilidades compartidas (sin modelos, no está en INSTALLED_APPS)
+│   ├── validators.py             # Validadores customizados (cédula EC)
+│   ├── mixins.py                 # StaffRequiredMixin, GroupRequiredMixin, PermissionRequiredMixin,
+│   │                             #   ProtectedDeleteMixin
+│   ├── decorators.py             # audit_action, permission_required_with_message
+│   ├── emails.py                 # Envío de correos (bienvenida, factura en PDF)
+│   └── middleware.py             # ForcePasswordChangeMiddleware
+│
+├── templates/registration/       # Login, cambio de contraseña
+├── media/products/               # Imágenes subidas de productos
+├── static/                       # Archivos estáticos (CSS/JS/imágenes)
+├── dbsalesA2.sqlite3
+├── manage.py
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
 ## 🗃 Modelo de datos
 
-El sistema se compone de **8 entidades** relacionadas entre sí.
-
-### Diagrama entidad–relación
+### Diagrama entidad–relación (simplificado)
 
 ```mermaid
 erDiagram
@@ -131,102 +187,52 @@ erDiagram
     CUSTOMER ||--o{ INVOICE : "genera"
     INVOICE ||--o{ INVOICE_DETAIL : "contiene"
     PRODUCT ||--o{ INVOICE_DETAIL : "aparece en"
+    INVOICE ||--o{ CUOTA_VENTA : "si es CREDITO"
+    CUOTA_VENTA ||--o{ PAGO_CUOTA_VENTA : "recibe"
+
+    SUPPLIER ||--o{ PURCHASE : "recibe"
+    PURCHASE ||--o{ PURCHASE_DETAIL : "contiene"
+    PRODUCT ||--o{ PURCHASE_DETAIL : "aparece en"
+    PURCHASE ||--o{ CUOTA_COMPRA : "si es CREDITO"
+    CUOTA_COMPRA ||--o{ PAGO_CUOTA_COMPRA : "recibe"
+
+    USER ||--o{ GROUP : "tiene un rol"
+    GROUP ||--o{ PERMISSION : "tiene permisos"
+    USER ||--|| PERFIL_USUARIO : "tiene perfil"
 ```
 
-### Descripción de las entidades
+### Catálogo (`billing`)
 
-**Brand** (Marca) — Marcas de los productos.
+**Brand / ProductGroup / Supplier / Product / Customer / CustomerProfile** — sin cambios de fondo respecto al catálogo original (marca, grupo, proveedor, producto con `stock` ahora validado con `MinValueValidator(0)`, cliente con validación de cédula/RUC ecuatoriana).
 
-| Campo        | Tipo          | Notas                  |
-|--------------|---------------|------------------------|
-| name         | CharField     | Único, obligatorio     |
-| description  | TextField     | Opcional               |
-| is_active    | BooleanField  | Por defecto `True`     |
-| created_at   | DateTimeField | Automático al crear    |
-| updated_at   | DateTimeField | Automático al editar   |
+**ConfiguracionSistema** — singleton (`get_activa()`) con `iva_porcentaje` editable desde la UI, usado en el cálculo de facturas y compras (backend y JS en vivo).
 
-**ProductGroup** (Grupo de productos) — Categorías de productos.
+### Facturación y Compras a crédito
 
-| Campo      | Tipo         | Notas              |
-|------------|--------------|--------------------|
-| name       | CharField    | Único, obligatorio |
-| is_active  | BooleanField | Por defecto `True` |
+**Invoice** (Factura)
 
-**Supplier** (Proveedor) — Empresas que abastecen productos.
+| Campo        | Tipo                  | Notas                                         |
+|--------------|-----------------------|-------------------------------------------------|
+| customer     | ForeignKey → Customer | `PROTECT`                                      |
+| invoice_date | DateTimeField         | Fecha automática al crear                       |
+| subtotal / tax / total | DecimalField | Calculados al guardar, con el IVA configurable |
+| tipo_pago    | CharField             | `CONTADO` / `CREDITO`                          |
+| saldo        | DecimalField          | Saldo pendiente (0 si es contado)              |
+| estado       | CharField             | `PENDIENTE` / `PAGADA`                         |
 
-| Campo         | Tipo        | Notas                          |
-|---------------|-------------|--------------------------------|
-| name          | CharField   | Nombre de la compañía          |
-| contact_name  | CharField   | Persona de contacto (opcional) |
-| email         | EmailField  | Opcional                       |
-| phone         | CharField   | Opcional                       |
-| address       | TextField   | Opcional                       |
-| is_active     | BooleanField| Por defecto `True`             |
+**Purchase** (Compra) — mismos campos `tipo_pago`/`saldo`/`estado` que `Invoice`, más `supplier`, `document_number`.
 
-**Product** (Producto) — Artículos a la venta.
+**CuotaVenta** / **CuotaCompra** — una cuota mensual de una factura/compra a crédito: `numero`, `fecha_vencimiento`, `valor`, `saldo`, `estado` (`PENDIENTE`/`PAGADA`). `UniqueConstraint(factura/compra, numero)` para que no existan cuotas duplicadas o mal numeradas.
 
-| Campo       | Tipo                | Notas                                  |
-|-------------|---------------------|----------------------------------------|
-| name        | CharField           | Obligatorio                            |
-| description | TextField           | Opcional                               |
-| brand       | ForeignKey → Brand  | `PROTECT` (no borra si está en uso)    |
-| group       | ForeignKey → Group  | `PROTECT`                              |
-| suppliers   | ManyToMany → Supplier | Varios proveedores por producto      |
-| unit_price  | DecimalField        | Precio unitario                        |
-| stock       | IntegerField        | Existencias, por defecto `0`           |
-| image       | ImageField          | Imagen del producto, opcional          |
-| is_active   | BooleanField        | Por defecto `True`                     |
-| created_at  | DateTimeField       | Automático al crear                    |
-| updated_at  | DateTimeField       | Automático al editar                   |
+**PagoCuotaVenta** / **PagoCuotaCompra** — un pago sobre una cuota: `fecha`, `valor`, `observacion`. `on_delete=PROTECT` en la cuota, así que una cuota con pagos no se puede eliminar sin antes borrar sus pagos.
 
-> Incluye la propiedad `balance` que calcula `unit_price × stock`.
+> El saldo/estado de la cuota y de la factura/compra se recalculan **desde cero sumando todos los pagos vigentes** (no restando incrementalmente), para evitar drift numérico. Ver `services.py` de cada app (`generar_cuotas`, `recalcular_cuota`, `recalcular_factura`/`recalcular_compra`).
 
-**Customer** (Cliente) — Personas o empresas que compran.
+### Seguridad (`security`)
 
-| Campo       | Tipo        | Notas                                                 |
-|-------------|-------------|-------------------------------------------------------|
-| dni         | CharField   | DNI/RUC, único, validado con cédula ecuatoriana      |
-| first_name  | CharField   | Nombre                                                |
-| last_name   | CharField   | Apellido                                              |
-| email       | EmailField  | Opcional                                              |
-| phone       | CharField   | Opcional                                              |
-| address     | TextField   | Opcional                                              |
-| is_active   | BooleanField| Por defecto `True`                                    |
-| created_at  | DateTimeField | Automático al crear                                  |
-| updated_at  | DateTimeField | Automático al editar                                 |
-
-> Incluye la propiedad `full_name` que devuelve `nombre + apellido`.
-> DNI/RUC es validado automáticamente usando validador de cédula ecuatoriana.
-
-**CustomerProfile** (Perfil del cliente) — Datos extendidos, relación 1:1 con Customer.
-
-| Campo         | Tipo         | Notas                                          |
-|---------------|--------------|------------------------------------------------|
-| taxpayer_type | CharField    | Tipo de contribuyente (Final/RUC/RISE)         |
-| payment_terms | CharField    | Forma de pago (contado / crédito 15/30/60 días)|
-| credit_limit  | DecimalField | Límite de crédito                              |
-| notes         | TextField    | Observaciones                                  |
-
-**Invoice** (Factura) — Cabecera de la factura.
-
-| Campo        | Tipo                  | Notas                              |
-|--------------|-----------------------|------------------------------------|
-| customer     | ForeignKey → Customer | `PROTECT`                          |
-| invoice_date | DateTimeField         | Fecha automática al crear          |
-| subtotal     | DecimalField          | Calculado por la vista             |
-| tax          | DecimalField          | IVA (15%), calculado por la vista  |
-| total        | DecimalField          | `subtotal + tax`, calculado        |
-| is_active    | BooleanField          | Por defecto `True`                 |
-
-**InvoiceDetail** (Detalle de factura) — Líneas de la factura.
-
-| Campo      | Tipo                  | Notas                                       |
-|------------|-----------------------|---------------------------------------------|
-| invoice    | ForeignKey → Invoice  | `CASCADE` (se borra con la factura)         |
-| product    | ForeignKey → Product  | `PROTECT`                                   |
-| quantity   | IntegerField          | Cantidad, por defecto `1`                   |
-| unit_price | DecimalField          | Precio unitario                             |
-| subtotal   | DecimalField          | Calculado automáticamente: `cantidad × precio` |
+- **User / Group / Permission** — modelos nativos de Django (`django.contrib.auth`). Los usuarios se crean solo por el Administrador (`AdminUserCreateForm`, sin auto-registro público); cada usuario tiene **un único rol** (no múltiples grupos).
+- **PerfilUsuario** — extiende `User` con `must_change_password`, que fuerza el cambio de contraseña en el primer login (`ForcePasswordChangeMiddleware`).
+- La matriz de permisos (`security:role_permissions`) permite marcar ver/crear/editar/eliminar por módulo para cada rol; el navbar y las vistas (`PermissionRequiredMixin`, `permission_required_with_message`) leen esos permisos directamente — un rol nuevo ve automáticamente los links que le correspondan, sin tocar código.
 
 ---
 
@@ -234,7 +240,6 @@ erDiagram
 
 - **Python 3.13** (o compatible) instalado y disponible en el PATH.
 - **pip** (incluido con Python).
-- Verifica la instalación con:
 
 ```bash
 python --version
@@ -245,7 +250,7 @@ pip --version
 
 ## ⚙️ Instalación y configuración
 
-> Los comandos están pensados para **Windows (CMD)**. En Linux/Mac se activa el entorno con `source ent_sales_A2/bin/activate`.
+> Los comandos están pensados para **Windows (CMD/PowerShell)**. En Linux/Mac se activa el entorno con `source ent_sales/bin/activate`.
 
 **1. Ubícate en la carpeta del proyecto**
 
@@ -256,15 +261,15 @@ cd Sales_A2
 **2. Crea un entorno virtual**
 
 ```cmd
-python -m venv ent_sales_A2
+python -m venv ent_sales
 ```
 
-> El entorno virtual **no se comparte entre computadoras**. Si copiaste el proyecto de otra PC, borra la carpeta `ent_sales_A2` y vuelve a crearla con este comando.
+> El entorno virtual **no se comparte entre computadoras**. Si copiaste el proyecto de otra PC, bórralo y vuelve a crearlo con este comando.
 
 **3. Activa el entorno virtual**
 
 ```cmd
-ent_sales_A2\Scripts\activate
+ent_sales\Scripts\activate
 ```
 
 **4. Instala las dependencias**
@@ -273,17 +278,25 @@ ent_sales_A2\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**5. Aplica las migraciones** (crea/actualiza las tablas de la base de datos)
+**5. Aplica las migraciones**
 
 ```cmd
 python manage.py migrate
 ```
 
-**6. Crea un superusuario** (para acceder al admin y poder iniciar sesión)
+**6. Crea un superusuario** (para entrar al admin y a la matriz de Roles/Permisos)
 
 ```cmd
 python manage.py createsuperuser
 ```
+
+**7. (Opcional) Crea los roles base con sus permisos**
+
+```cmd
+python manage.py setup_roles
+```
+
+> Desde ahí, el resto de usuarios se crean **solo desde la app** (Seguridad → Usuarios → Nuevo), no por auto-registro: el sistema genera una contraseña temporal y la envía por correo (o la muestra en pantalla si el correo no está configurado), y obliga a cambiarla en el primer login.
 
 ---
 
@@ -297,12 +310,17 @@ python manage.py runserver
 
 Luego abre en el navegador:
 
-| Recurso              | URL                                      |
-|----------------------|------------------------------------------|
-| Aplicación           | http://127.0.0.1:8000/                   |
-| Panel de administración | http://127.0.0.1:8000/admin/          |
-| Inicio de sesión     | http://127.0.0.1:8000/accounts/login/    |
-| Registro             | http://127.0.0.1:8000/signup/            |
+| Recurso                         | URL                                    |
+|----------------------------------|-----------------------------------------|
+| Aplicación (Home)                | http://127.0.0.1:8000/                  |
+| Panel de administración          | http://127.0.0.1:8000/admin/            |
+| Inicio de sesión                | http://127.0.0.1:8000/security/login/   |
+| Facturas                        | http://127.0.0.1:8000/invoices/         |
+| Compras                         | http://127.0.0.1:8000/purchases/        |
+| Cuotas pendientes (Ventas)       | http://127.0.0.1:8000/creditos-ventas/pendientes/ |
+| Cuotas pendientes (Compras)      | http://127.0.0.1:8000/creditos-compras/pendientes/ |
+| Usuarios / Roles / Permisos      | http://127.0.0.1:8000/security/users/ · `/security/roles/` · `/security/permissions/` |
+| Configuración del sistema (IVA)  | http://127.0.0.1:8000/configuracion/    |
 
 ---
 
@@ -310,122 +328,87 @@ Luego abre en el navegador:
 
 ### Flujo general
 
-1. **Regístrate o inicia sesión.** Sin sesión activa, todas las pantallas redirigen al login.
-2. **Carga los catálogos base** en este orden recomendado:
-   - Marcas → Grupos → Proveedores → Productos → Clientes
-   - (Un producto necesita una marca y un grupo existentes; una factura necesita clientes y productos).
-3. **Crea una factura:**
-   - Selecciona el cliente.
-   - Agrega una o varias líneas de detalle (producto, cantidad, precio) con el botón **+ Agregar producto**.
-   - Al guardar, el sistema calcula automáticamente:
-     - `subtotal` = suma de los subtotales de cada línea
-     - `tax` = 15% del subtotal (IVA)
-     - `total` = subtotal + IVA
+1. **Inicia sesión** (no hay registro público; el Administrador crea las cuentas). Sin sesión activa, todas las pantallas redirigen al login.
+2. **Carga los catálogos base**: Marcas → Grupos → Proveedores → Productos → Clientes (un producto necesita marca y grupo; una factura necesita cliente y productos).
+3. **Crea una factura o compra:**
+   - Elige `CONTADO` o `CRÉDITO`. Si es crédito, indica el número de cuotas mensuales.
+   - Agrega líneas de detalle (producto, cantidad, precio/costo) con **+ Agregar producto**; el precio se autocompleta al elegir el producto y el subtotal/IVA/total se calculan en vivo.
+   - Si pides más cantidad de la que hay en stock, la línea se rechaza con un mensaje claro (solo en Facturas).
+   - Al guardar: si es CONTADO, queda `PAGADA` de inmediato; si es CRÉDITO, se generan las cuotas mensuales y queda `PENDIENTE`.
+4. **Gestiona las cuotas a crédito** desde "Ver Cuotas" (en el detalle de la factura/compra) o desde "Cuotas Pendientes" (vista global, sin entrar a un documento puntual): paga una cuota individual o varias en lote, revisa el historial de pagos (con aviso si algún pago fue atrasado), e imprime el PDF del Plan de Pagos en cualquier momento.
 
 ### Características en los listados
 
-En **todos los listados** (Marcas, Grupos, Proveedores, Productos, Clientes, Facturas):
-
-- **Búsqueda y filtros**: formularios en la parte superior para filtrar por campo, estado, rango de fechas/precios, etc.
-- **Columnas seleccionables**: botón "Campos" con un modal que permite elegir qué columnas ver. Las preferencias se guardan en `localStorage`.
-- **Exportación**: botones "PDF" y "Excel" que exportan **solo las columnas seleccionadas**.
-- **Vista detallada**: botón azul "Ver" (icono ojo) para ver todos los datos de un registro en una página dedicada.
-- **Editar**: botón naranja "Editar" (icono lápiz) para modificar el registro.
-- **Eliminar**: botón rojo "Eliminar" (icono basura) con confirmación.
-- **Imágenes**: en Productos, se ve la imagen miniaturizada si existe (vía Pillow).
-- **Paginación**: navegación entre páginas con conservación de filtros y búsqueda.
+En **todos los listados**: búsqueda/filtros, selector de columnas con persistencia en `localStorage`, exportación a PDF/Excel respetando las columnas activas, ver/editar/eliminar con permisos (los botones se ocultan según el permiso del usuario), paginación con conservación de filtros.
 
 ### Rutas principales
 
-| Módulo      | Listado          | Crear                    | Ver (Detail)             |
-|-------------|------------------|--------------------------|--------------------------|
-| Marcas      | `/brands/`       | `/brands/create/`        | `/brands/<id>/`          |
-| Grupos      | `/groups/`       | `/groups/create/`        | `/groups/<id>/`          |
-| Proveedores | `/suppliers/`    | `/suppliers/create/`     | `/suppliers/<id>/`       |
-| Productos   | `/products/`     | `/products/create/`      | `/products/<id>/`        |
-| Clientes    | `/customers/`    | `/customers/create/`     | `/customers/<id>/`       |
-| Facturas    | `/invoices/`     | `/invoices/create/`      | `/invoices/<id>/`        |
+| Módulo          | Listado                     | Crear                          | Detalle / Cuotas                  |
+|-----------------|------------------------------|----------------------------------|-------------------------------------|
+| Marcas          | `/brands/`                  | `/brands/create/`                | `/brands/<id>/`                    |
+| Grupos          | `/groups/`                  | `/groups/create/`                | `/groups/<id>/`                    |
+| Proveedores     | `/suppliers/`                | `/suppliers/create/`             | `/suppliers/<id>/`                 |
+| Productos       | `/products/`                 | `/products/create/`              | `/products/<id>/`                  |
+| Clientes        | `/customers/`                | `/customers/create/`             | `/customers/<id>/`                 |
+| Facturas        | `/invoices/`                  | `/invoices/create/`              | `/invoices/<id>/` · `/invoices/<id>/pdf/` |
+| Compras         | `/purchases/`                 | `/purchases/create/`             | `/purchases/<id>/` · `/purchases/<id>/pdf/` |
+| Cuotas (Ventas) | `/creditos-ventas/pendientes/` | —                               | `/creditos-ventas/factura/<id>/cuotas/` |
+| Cuotas (Compras)| `/creditos-compras/pendientes/`| —                               | `/creditos-compras/compra/<id>/cuotas/` |
+| Usuarios        | `/security/users/`            | `/security/users/create/`        | —                                   |
+| Roles/Permisos  | `/security/roles/`            | `/security/roles/create/`        | `/security/roles/<id>/permisos/`   |
 
 ---
 
 ## 🧩 Decisiones de diseño
 
-Esta sección explica el *por qué* de las principales decisiones técnicas.
-
 ### Vistas basadas en funciones (FBV) vs. en clases (CBV)
 
-El proyecto combina ambos enfoques de forma intencional:
+Se combinan ambos enfoques a propósito:
 
-- **FBV** (`invoice_create`, `invoice_detail`): se usan donde conviene controlar manualmente el flujo `GET`/`POST`. El caso de **factura** lo requiere porque coordina **dos formularios a la vez** (la cabecera y el *formset* de detalles) y además calcula los totales antes de guardar — algo que en una vista genérica resulta forzado.
-- **CBV** (`Brand`, `ProductGroup`, `Supplier`, `Product`, `Customer` con `ListView`, `DetailView`, `CreateView`, `UpdateView`, `DeleteView`): usan las vistas genéricas de Django, que reducen el código repetitivo de un CRUD estándar.
+- **FBV** (`invoice_create`, `purchase_create`, `invoice_detail`, `registrar_pago`, `pagar_cuotas_lote`): donde conviene controlar manualmente el flujo `GET`/`POST`, coordinar dos formularios a la vez (cabecera + formset de detalle) o encadenar varios pasos de validación/negocio dentro de una transacción.
+- **CBV** (catálogo, cuotas, historial, permisos): usan las vistas genéricas de Django (`ListView`, `DetailView`, `CreateView`, `UpdateView`, `DeleteView`) para reducir el código repetitivo de un CRUD estándar.
+
+### Seguridad y permisos, no nombres de rol hardcodeados
+
+El navbar y las vistas de negocio (Facturas, Compras, catálogo) verifican `perms.<app>.<accion>_<modelo>`, **no** el nombre del grupo. Esto significa que un rol nuevo, con los permisos que le marques en la matriz, ve automáticamente lo que le corresponde sin tocar plantillas ni código. La única excepción intencional es el módulo "Seguridad" del navbar, reservado exclusivamente al rol llamado `Administrador`.
+
+Los mixins reutilizables (`shared/mixins.py`) — `StaffRequiredMixin`, `GroupRequiredMixin`, `PermissionRequiredMixin`, `ProtectedDeleteMixin` — y el decorador `permission_required_with_message` siguen todos el mismo patrón: si falta el permiso, redirigen con un mensaje de error amigable (no un 403 crudo de Django).
+
+### Ventas/Compras a crédito: patrón de `services.py`
+
+`creditos_ventas` y `creditos_compras` centralizan la lógica de negocio de cuotas en un módulo `services.py` (no en las vistas ni en los modelos):
+
+- `generar_cuotas(documento, num_cuotas)`: reparte el total en cuotas mensuales iguales, absorbiendo el redondeo en la última para que la suma sea **exacta**.
+- `recalcular_cuota(cuota)` / `recalcular_factura(...)` / `recalcular_compra(...)`: recalculan el saldo **desde cero sumando todos los pagos vigentes** (no restando incrementalmente), para no arrastrar errores de redondeo ni desincronizarse si se borra un pago.
+
+El pago en lote (`pagar_cuotas_lote`) valida cada cuota seleccionada dentro de una única `transaction.atomic()`: si cualquiera falla, no se guarda nada del lote.
+
+### Validación de stock con blindaje contra condición de carrera
+
+`invoice_create` valida el stock en dos capas:
+
+1. **Formset** (`BaseInvoiceDetailFormSet.clean()`): rechaza la factura completa si alguna línea pide más cantidad de la disponible, indicando qué producto y cuánto falta.
+2. **Vista**, dentro de la misma transacción: revalida con `Product.objects.select_for_update().get(...)` justo antes de descontar, cerrando la ventana entre "se validó" y "se descontó" ante dos facturas simultáneas sobre el mismo producto.
+
+### IVA configurable, no hardcodeado
+
+`ConfiguracionSistema.get_activa().iva_porcentaje` reemplaza el `0.15` fijo, tanto en el cálculo del backend (`invoice_create`/`purchase_create`) como en el cálculo en vivo (JS) de los formularios — pasado al template con el filtro `unlocalize` para evitar que el locale `es-ec` (coma decimal) rompa el número en JavaScript.
 
 ### Selectores de columnas dinámicos con localStorage
 
-Cada listado define un diccionario `*_ALL_COLUMNS` con metadatos sobre cada columna:
-
-```python
-PRODUCT_ALL_COLUMNS = [
-    {'key': 'name', 'label': 'Nombre', 'default': True, 'export': ('name', 'Nombre')},
-    ...
-]
-```
-
-- **`key`**: identificador único de la columna.
-- **`label`**: etiqueta mostrada en la UI.
-- **`default`**: si se muestra por defecto.
-- **`export`**: tupla `(source, label)` para exportación (puede ser string, dotted path, o función).
-
-En la plantilla, JavaScript con `localStorage` permite toggling de columnas persistente. Al exportar, solo se incluyen las columnas activas.
+Cada listado define un diccionario `*_ALL_COLUMNS` con metadatos (`key`, `label`, `default`, `export`). JavaScript con `localStorage` permite alternar columnas de forma persistente; al exportar, solo se incluyen las columnas activas.
 
 ### ExportMixin para PDF y Excel
 
-- **PDF**: ReportLab genera documentos con tabla, encabezados coloreados, orientación dinámica según número de columnas.
-- **Excel**: openpyxl formatea celdas con colores, bordes, alineación.
-- Ambas respetan las columnas activas del listado (via URL `?cols=name,price,...&export=pdf`).
+ReportLab genera los PDF de listados (tabla, encabezados coloreados, orientación dinámica según número de columnas); openpyxl formatea el Excel. Los documentos de **un solo registro** (Factura, Compra, Plan de Pagos) usan generadores propios (`invoice_pdf.py`, `purchase_pdf.py`, `plan_pagos_pdf.py`) con el mismo estilo visual, separados del `ExportMixin` de listados.
+
+### Integridad referencial (`on_delete`) con mensajes amigables
+
+`PROTECT` en `Product.brand/group`, `Invoice.customer`, `InvoiceDetail.product`, `CuotaVenta.factura`, `PagoCuotaVenta.cuota` (y sus equivalentes de Compras) impide borrar un registro en uso. `ProtectedDeleteMixin` (CBV) y un `try/except ProtectedError` (vistas de función como `purchase_delete`) capturan ese error y muestran un mensaje claro en vez de la pantalla técnica de Django.
 
 ### Bootstrap e iconos en templates (no en `forms.py`)
 
-Las clases de Bootstrap se aplican en la **plantilla** mediante `django-widget-tweaks`, no en los widgets del formulario. Esto mantiene `forms.py` libre de detalles de presentación. Los iconos usan **Bootstrap Icons** cargados vía CDN: azul (ojo) para Ver, naranja (lápiz) para Editar, rojo (basura) para Eliminar.
-
-### Búsqueda multi-campo con Q objects
-
-Cada módulo tiene un `*SearchForm` que permite filtrar por múltiples campos usando Q objects en la queryset:
-
-```python
-Q(name__icontains=...) | Q(email__icontains=...)
-```
-
-Esto permite buscar un cliente por nombre, email o DNI simultáneamente.
-
-### Validación de DNI ecuatoriano
-
-El campo `Customer.dni` incluye un validador customizado que verifica que sea una cédula ecuatoriana válida:
-
-```python
-dni = models.CharField(..., validators=[validate_cedula_ec])
-```
-
-### Imágenes de productos con Pillow
-
-- Los productos pueden tener una imagen (ImageField → `media/products/`).
-- En el listado se muestra miniaturizada (48×48px).
-- En el detail, se muestra en mayor tamaño.
-
-### Integridad referencial (`on_delete`)
-
-- **`PROTECT`** en `Product.brand`, `Product.group`, `Invoice.customer` e `InvoiceDetail.product`: impide borrar un registro que está siendo usado.
-- **`CASCADE`** en `InvoiceDetail.invoice`: al eliminar una factura, sus líneas de detalle se eliminan automáticamente.
-
-### Cálculos automáticos
-
-- `InvoiceDetail.subtotal` se calcula al guardar: `cantidad × precio_unitario`.
-- Los totales de factura (`subtotal`, `tax`, `total`) se calculan en `invoice_create` aplicando **IVA 15%**.
-
-### Seguridad
-
-- Todas las vistas de negocio exigen sesión iniciada (`@login_required` en FBV, `LoginRequiredMixin` en CBV).
-- El cierre de sesión se hace por **POST** (no GET) con `{% csrf_token %}`.
-- Los formularios de búsqueda se procesan por **GET** para permitir compartir URLs con filtros aplicados.
+Las clases de Bootstrap se aplican en la **plantilla** (via `django-widget-tweaks` o directamente en los widgets), manteniendo `forms.py` centrado en validación. Los iconos usan **Bootstrap Icons** vía CDN.
 
 ---
 
@@ -433,20 +416,27 @@ dni = models.CharField(..., validators=[validate_cedula_ec])
 
 ### Observaciones técnicas
 
-- **`requirements.txt`** incluye paquetes que no pertenecen a este proyecto (Flask, Jinja2, Werkzeug, etc.), probablemente arrastrados de otro entorno. Para un proyecto Django limpio, las dependencias necesarias son: `Django`, `asgiref`, `sqlparse`, `tzdata`, `django-widget-tweaks`, `openpyxl`, `reportlab` y `pillow`.
+- **`requirements.txt`** incluye paquetes que no pertenecen a este proyecto (Flask, Jinja2, Werkzeug, etc.), arrastrados de otro entorno. Las dependencias realmente necesarias son: `Django`, `asgiref`, `sqlparse`, `tzdata`, `django-widget-tweaks`, `openpyxl`, `reportlab`, `pillow`, `django-extensions`.
+- **Correo saliente**: `config/settings.py` usa el backend SMTP de Gmail. Sin credenciales reales configuradas, cambia `EMAIL_BACKEND` al backend de consola para desarrollo (ver comentario en el propio archivo).
+- **Directorio `media/`**: debe existir para imágenes de productos; Django lo crea automáticamente, pero en producción debe servirse aparte del servidor de aplicación.
+- **Validador de cédula**: `shared/validators.py` verifica la cédula/RUC ecuatoriana según el algoritmo oficial.
+- **Migraciones de datos**: agregar un validador (`MinValueValidator`) a un campo existente no corrige los datos que ya estén fuera de rango (ej. productos con stock negativo de antes del fix) — hay que corregirlos a mano.
 
-- **`settings.py`**: Incluye `MESSAGE_TAGS` para mostrar alertas de error en rojo. Esto funciona correctamente.
+### Posibles mejoras futuras
 
-- **Directorio `media/`**: Debe existir para almacenar imágenes subidas. Django lo crea automáticamente, pero en producción debe ser accesible vía web server.
+- Aplicar el mismo blindaje de `select_for_update()` (condición de carrera) al descuento/aumento de stock en Compras, igual que ya se hizo en Facturas.
+- Reportes agregados (ventas por período, top productos, cartera vencida total).
+- Dashboard con gráficos.
+- API REST para integración con terceros.
+- Auditoría más completa (quién editó/borró qué y cuándo, más allá del log de `audit_action`).
+- Notificación por correo cuando una cuota está por vencer o ya venció.
+- Extender el pago en lote y el resaltado de "vencida"/"pago atrasado" a un posible módulo de cobros si se agrega en el futuro.
 
-- **Validador de cédula**: El validador `validate_cedula_ec` en `shared/validators.py` verifica que la cédula ecuatoriana sea válida según el algoritmo oficial.
-
-
-
+---
 
 ## 🔎 Guía de consultas ORM (referencia)
 
-Referencia rápida de las consultas con el ORM de Django aplicadas a este sistema de Facturación y Compras. Cada enunciado va acompañado de su sentencia correcta. Útil para pruebas en el shell (`python manage.py shell`).
+Referencia rápida de las consultas con el ORM de Django aplicadas a este sistema. Cada enunciado va acompañado de su sentencia correcta. Útil para pruebas en el shell (`python manage.py shell`).
 
 > Imports necesarios al inicio de la sesión:
 > ```python
@@ -749,18 +739,6 @@ Regla: si se pide "cuántos X **por cada** Y" empezando desde X, el patrón es `
 **Antes de un DELETE masivo** — correr el `filter` sin `.delete()` y un `.count()` para ver qué caería. Según el `on_delete`, puede lanzar `ProtectedError`.
 
 **El error como guía** — `FieldError: Cannot resolve keyword 'nombre'` lista los campos válidos en `Choices are: ...`.
-
----
-### Posibles mejoras futuras
-
-- Agregar reportes (resumen de ventas por período, top 10 productos, etc.).
-- Integrar pasarela de pago para facturas en línea.
-- Implementar notificaciones por email al crear/actualizar facturas.
-- Agregar control de inventario (movimientos de stock, ajustes).
-- Historial de auditoría completo (quién creó/editó/borró y cuándo).
-- Generar códigos de barras/QR en PDF de facturas.
-- API REST para integración con terceros.
-- Panel de control (dashboard) con gráficos de ventas.
 
 ---
 

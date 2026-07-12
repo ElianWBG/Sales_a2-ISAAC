@@ -26,6 +26,7 @@ from shared.emails import send_invoice_email
 from security.views import AdminOnlyMixin
 from .invoice_pdf import generar_pdf_factura
 from django.db.models import ProtectedError
+from django.core.exceptions import ValidationError
 from django.contrib import messages
 from django.shortcuts import redirect
 
@@ -904,30 +905,52 @@ def invoice_create(request):
         form = InvoiceForm(request.POST)
         formset = InvoiceDetailFormSet(request.POST)
         if form.is_valid() and formset.is_valid():
-            invoice = form.save()
-            formset.instance = invoice
-            formset.save()
+            try:
+                with transaction.atomic():
+                    invoice = form.save()
+                    formset.instance = invoice
+                    formset.save()
 
-            for d in invoice.details.all():
-                Product.objects.filter(pk=d.product_id).update(stock=F('stock') - d.quantity)
+                    # Revalida el stock DENTRO de la transacción, con
+                    # select_for_update(): cierra la ventana de condición de
+                    # carrera entre dos facturas simultáneas que pasaron la
+                    # validación del formset (sin locking) antes de que
+                    # ninguna hubiera descontado stock todavía. Si algo no
+                    # alcanza, se hace rollback completo (ni factura ni stock
+                    # quedan modificados a medias).
+                    errores_stock = []
+                    for d in invoice.details.all():
+                        product = Product.objects.select_for_update().get(pk=d.product_id)
+                        if d.quantity > product.stock:
+                            errores_stock.append(
+                                f'"{product.name}": pediste {d.quantity}, pero solo hay {product.stock} en stock.'
+                            )
+                        else:
+                            product.stock = F('stock') - d.quantity
+                            product.save(update_fields=['stock'])
+                    if errores_stock:
+                        raise ValidationError(errores_stock)
 
-            subtotal = sum(d.subtotal for d in invoice.details.all())
-            invoice.subtotal = subtotal
-            invoice.tax = subtotal * config.iva_porcentaje / Decimal('100')
-            invoice.total = invoice.subtotal + invoice.tax
+                    subtotal = sum(d.subtotal for d in invoice.details.all())
+                    invoice.subtotal = subtotal
+                    invoice.tax = subtotal * config.iva_porcentaje / Decimal('100')
+                    invoice.total = invoice.subtotal + invoice.tax
 
-            with transaction.atomic():
-                if invoice.tipo_pago == 'CONTADO':
-                    invoice.saldo = 0
-                    invoice.estado = 'PAGADA'
-                else:  # CREDITO
-                    invoice.saldo = invoice.total
-                    invoice.estado = 'PENDIENTE'
-                invoice.save()
+                    if invoice.tipo_pago == 'CONTADO':
+                        invoice.saldo = 0
+                        invoice.estado = 'PAGADA'
+                    else:  # CREDITO
+                        invoice.saldo = invoice.total
+                        invoice.estado = 'PENDIENTE'
+                    invoice.save()
 
-                if invoice.tipo_pago == 'CREDITO':
-                    from creditos_ventas.services import generar_cuotas
-                    generar_cuotas(invoice, form.cleaned_data['num_cuotas'])
+                    if invoice.tipo_pago == 'CREDITO':
+                        from creditos_ventas.services import generar_cuotas
+                        generar_cuotas(invoice, form.cleaned_data['num_cuotas'])
+            except ValidationError as e:
+                for msg in e.messages:
+                    messages.error(request, msg)
+                return redirect('billing:invoice_create')
 
             # Correo con la factura en PDF al cliente (si tiene correo registrado)
             pdf_bytes = generar_pdf_factura(invoice)
@@ -952,11 +975,12 @@ def invoice_create(request):
     return render(request, 'billing/invoice_form.html', {
         'form': form, 'formset': formset, 'title': 'Nueva Factura', 'config': config,
     })
-class InvoiceDeleteView(LoginRequiredMixin, StaffRequiredMixin, PermissionRequiredMixin, DeleteView):
+class InvoiceDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, StaffRequiredMixin, PermissionRequiredMixin, DeleteView):
     model = Invoice;
     template_name = 'billing/invoice_confirm_delete.html';
     success_url = reverse_lazy('billing:invoice_list')
     staff_redirect_url = '/invoices/'
+    protected_message = 'No se puede eliminar la factura porque tiene cuotas de crédito asociadas.'
     permission_required = 'billing.delete_invoice'
     permission_redirect_url = '/invoices/'
 

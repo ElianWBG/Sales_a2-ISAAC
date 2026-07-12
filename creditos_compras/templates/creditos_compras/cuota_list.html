@@ -1,0 +1,203 @@
+{% extends 'billing/base.html' %}
+{% load l10n %}
+{% block title %}Cuotas - Compra #{{ compra.id }}{% endblock %}
+{% block content %}
+<style>
+  #lote-panel-wrapper {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+  }
+</style>
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+    <h4 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-calendar-check"></i> Cuotas - Compra #{{ compra.id }}</h4>
+    <span class="badge {% if compra.estado == 'PAGADA' %}bg-success{% else %}bg-warning text-dark{% endif %} fs-6">{{ compra.estado }}</span>
+  </div>
+  <div class="card-body p-4">
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <p class="mb-1"><strong>Proveedor:</strong> {{ compra.supplier }}</p>
+        <p class="mb-1"><strong>Total compra:</strong> ${{ compra.total }}</p>
+      </div>
+      <div class="col-md-6 text-md-end">
+        <p class="mb-1"><strong>Saldo pendiente:</strong> ${{ compra.saldo }}</p>
+        <a href="{% url 'creditos_compras:historial_pagos_compra' compra.pk %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-clock-history"></i> Historial de pagos
+        </a>
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'creditos_compras:pagar_cuotas_lote' compra.pk %}" id="form-pago-lote">
+      {% csrf_token %}
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle">
+          <thead class="table-dark">
+            <tr>
+              <th class="text-center" style="width:40px;">
+                <input type="checkbox" class="form-check-input" id="chk-select-all" title="Seleccionar todas las pendientes">
+              </th>
+              <th>N°</th>
+              <th>Vencimiento</th>
+              <th class="text-end">Valor</th>
+              <th class="text-end">Saldo</th>
+              <th class="text-center">Estado</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cuota in cuotas %}
+            <tr>
+              <td class="text-center">
+                {% if cuota.estado == 'PENDIENTE' %}
+                <input type="checkbox" class="form-check-input cuota-checkbox" name="cuotas" value="{{ cuota.pk }}" data-saldo="{{ cuota.saldo|unlocalize }}">
+                {% else %}
+                <input type="checkbox" class="form-check-input" disabled>
+                {% endif %}
+              </td>
+              <td>{{ cuota.numero }}</td>
+              <td>{{ cuota.fecha_vencimiento|date:"d/m/Y" }}</td>
+              <td class="text-end">${{ cuota.valor }}</td>
+              <td class="text-end">${{ cuota.saldo }}</td>
+              <td class="text-center">
+                <span class="badge {% if cuota.estado == 'PAGADA' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ cuota.estado }}</span>
+              </td>
+              <td class="text-center text-nowrap">
+                {% if cuota.estado == 'PENDIENTE' %}
+                <a href="{% url 'creditos_compras:registrar_pago' cuota.pk %}" class="btn btn-sm btn-primary">
+                  <i class="bi bi-cash-coin"></i> Registrar pago
+                </a>
+                {% endif %}
+                <a href="{% url 'creditos_compras:historial_pagos_cuota' cuota.pk %}" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-clock-history"></i> Historial
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center text-muted py-3">Esta compra no tiene cuotas (fue de contado).</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if cuotas %}
+      <div id="lote-panel-wrapper">
+        <div class="border rounded p-3 bg-light mb-3">
+          <h6 class="mb-3"><i class="bi bi-collection"></i> Pagar varias cuotas seleccionadas</h6>
+          <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+              <label class="form-label fw-semibold" for="id-fecha-lote">Fecha de pago</label>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="chk-fecha-hoy-lote" checked>
+                <label class="form-check-label" for="chk-fecha-hoy-lote">Pagar con fecha de hoy</label>
+              </div>
+              <input type="date" name="fecha" id="id-fecha-lote" class="form-control" required>
+            </div>
+            <div class="col-md-4">
+              <span id="resumen-seleccion" class="text-muted small">Ninguna cuota seleccionada.</span>
+            </div>
+            <div class="col-md-3 text-md-end">
+              <button type="submit" class="btn btn-success" id="btn-pagar-lote" disabled>
+                <i class="bi bi-cash-stack"></i> Pagar seleccionadas
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </form>
+
+    <a href="{% url 'purchasing:purchase_detail' compra.pk %}" class="btn btn-outline-secondary mt-3">
+      <i class="bi bi-arrow-left"></i> Volver a la compra
+    </a>
+  </div>
+</div>
+
+<script>
+(function () {
+  var chkSelectAll = document.getElementById('chk-select-all');
+  var checkboxes = document.querySelectorAll('.cuota-checkbox');
+  var btnPagarLote = document.getElementById('btn-pagar-lote');
+  var resumenSeleccion = document.getElementById('resumen-seleccion');
+  var chkFechaHoy = document.getElementById('chk-fecha-hoy-lote');
+  var fechaInput = document.getElementById('id-fecha-lote');
+  var panelWrapper = document.getElementById('lote-panel-wrapper');
+
+  function hoyISO() {
+    var d = new Date();
+    var mes = String(d.getMonth() + 1).padStart(2, '0');
+    var dia = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + mes + '-' + dia;
+  }
+
+  function toggleFecha() {
+    if (!chkFechaHoy || !fechaInput) return;
+    if (chkFechaHoy.checked) {
+      fechaInput.value = hoyISO();
+      fechaInput.readOnly = true;
+    } else {
+      fechaInput.readOnly = false;
+    }
+  }
+
+  // ── Slide del panel (CSS max-height + scrollHeight, sin librerías) ──
+  function mostrarPanel() {
+    if (!panelWrapper) return;
+    panelWrapper.style.maxHeight = panelWrapper.scrollHeight + 'px';
+    panelWrapper.style.opacity = '1';
+  }
+
+  function ocultarPanel() {
+    if (!panelWrapper) return;
+    panelWrapper.style.maxHeight = '0px';
+    panelWrapper.style.opacity = '0';
+  }
+
+  function actualizarResumen() {
+    if (!btnPagarLote) return;
+    var seleccionadas = document.querySelectorAll('.cuota-checkbox:checked');
+    var n = seleccionadas.length;
+    btnPagarLote.disabled = n === 0;
+
+    if (n === 0) {
+      if (resumenSeleccion) resumenSeleccion.textContent = 'Ninguna cuota seleccionada.';
+      ocultarPanel();
+      return;
+    }
+
+    var total = 0;
+    seleccionadas.forEach(function (cb) {
+      total += parseFloat(cb.dataset.saldo) || 0;
+    });
+
+    if (resumenSeleccion) {
+      var etiqueta = n === 1 ? 'cuota seleccionada' : 'cuotas seleccionadas';
+      resumenSeleccion.textContent = n + ' ' + etiqueta + ' · Total a pagar: $' + total.toFixed(2);
+    }
+    mostrarPanel();
+  }
+
+  checkboxes.forEach(function (cb) {
+    cb.addEventListener('change', function () {
+      if (chkSelectAll && !cb.checked) chkSelectAll.checked = false;
+      actualizarResumen();
+    });
+  });
+
+  if (chkSelectAll) {
+    chkSelectAll.addEventListener('change', function () {
+      checkboxes.forEach(function (cb) { cb.checked = chkSelectAll.checked; });
+      actualizarResumen();
+    });
+  }
+
+  if (chkFechaHoy) {
+    chkFechaHoy.addEventListener('change', toggleFecha);
+    toggleFecha();
+  }
+
+  actualizarResumen();
+})();
+</script>
+{% endblock %}

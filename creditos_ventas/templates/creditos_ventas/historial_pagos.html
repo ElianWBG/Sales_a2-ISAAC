@@ -24,7 +24,10 @@
           {% for pago in pagos %}
           <tr>
             {% if not cuota %}<td class="text-center">{{ pago.cuota.numero }}</td>{% endif %}
-            <td>{{ pago.fecha|date:"d/m/Y" }}</td>
+            <td>
+              {{ pago.fecha|date:"d/m/Y" }}
+              {% if pago.fecha > pago.cuota.fecha_vencimiento %}<span class="badge bg-danger ms-1">⚠ Pagado con retraso</span>{% endif %}
+            </td>
             <td class="text-end">${{ pago.valor }}</td>
             <td>{{ pago.observacion|default:"—" }}</td>
           </tr>

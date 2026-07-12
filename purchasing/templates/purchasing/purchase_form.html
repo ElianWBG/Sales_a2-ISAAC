@@ -29,6 +29,23 @@
         </div>
       </div>
 
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Tipo de pago</label>
+          {{ form.tipo_pago }}
+          {% for error in form.tipo_pago.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+        <div class="col-md-6" id="num-cuotas-wrapper">
+          <label class="form-label fw-semibold">{{ form.num_cuotas.label }}</label>
+          {{ form.num_cuotas }}
+          {% if form.num_cuotas.help_text %}<small class="text-muted d-block">{{ form.num_cuotas.help_text }}</small>{% endif %}
+          {% for error in form.num_cuotas.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        </div>
+      </div>
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+      {% endif %}
+
       {# ── Detalle ── #}
       <h5 class="mb-3 d-flex align-items-center gap-2"><i class="bi bi-list-ul"></i> Detalle de la compra</h5>
       {{ formset.management_form }}
@@ -241,6 +258,20 @@
   });
 
   recalcAll();
+
+  // ── Mostrar "Número de cuotas" solo si el tipo de pago es CREDITO ──
+  var tipoPagoSelect = document.getElementById('id_tipo_pago');
+  var numCuotasWrapper = document.getElementById('num-cuotas-wrapper');
+
+  function toggleNumCuotas() {
+    if (!tipoPagoSelect || !numCuotasWrapper) return;
+    numCuotasWrapper.style.display = tipoPagoSelect.value === 'CREDITO' ? '' : 'none';
+  }
+
+  if (tipoPagoSelect) {
+    tipoPagoSelect.addEventListener('change', toggleNumCuotas);
+    toggleNumCuotas();
+  }
 
   // ── Modal: Nuevo Proveedor (alta rápida sin perder el progreso de la compra) ──
   var supplierModalEl = document.getElementById('modalNuevoProveedor');
