@@ -183,19 +183,34 @@ class InvoiceForm(forms.ModelForm):
 
     class Meta:
         model = Invoice
-        fields = ['customer', 'tipo_pago']
+        fields = ['customer', 'tipo_pago', 'metodo_pago']
         widgets = {
             'customer': forms.Select(attrs={'class': 'form-select'}),
             'tipo_pago': forms.Select(attrs={'class': 'form-select'}),
+            'metodo_pago': forms.Select(attrs={'class': 'form-select'}),
         }
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get('tipo_pago') == 'CREDITO':
+        tipo_pago = cleaned.get('tipo_pago')
+        if tipo_pago == 'CREDITO':
             num = cleaned.get('num_cuotas')
             if not num or num < 1:
                 raise forms.ValidationError('Debes indicar el número de cuotas (mínimo 1) para una venta a crédito.')
+            # El pago de una factura a crédito se registra por cuota
+            # (creditos_ventas.PagoCuotaVenta); acá no aplica.
+            cleaned['metodo_pago'] = None
+        elif tipo_pago == 'CONTADO' and not cleaned.get('metodo_pago'):
+            self.add_error('metodo_pago', 'Selecciona un método de pago para una factura de contado.')
         return cleaned
+
+    def save(self, commit=True):
+        invoice = super().save(commit=False)
+        if invoice.tipo_pago == 'CREDITO':
+            invoice.metodo_pago = None
+        if commit:
+            invoice.save()
+        return invoice
 
 
 class BaseInvoiceDetailFormSet(BaseInlineFormSet):
@@ -231,7 +246,7 @@ InvoiceDetailFormSet = forms.inlineformset_factory(
     can_delete=True,
     widgets={
         'product': forms.Select(attrs={'class': 'form-select'}),
-        'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+        'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'value': 1}),
         'unit_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': 0}),
     },
 )

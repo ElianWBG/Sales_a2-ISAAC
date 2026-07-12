@@ -98,6 +98,20 @@ class CustomerProfile(models.Model):
 
 class Invoice(models.Model):
     """Cabecera de factura."""
+
+    METODO_PAGO_CHOICES = [
+        ("EFECTIVO", "Efectivo"),
+        ("TRANSFERENCIA", "Transferencia"),
+        ("PAYPAL", "PayPal"),
+    ]
+
+    PAYPAL_STATUS_CHOICES = [
+        ("CREATED", "Creada"),
+        ("APPROVED", "Aprobada"),
+        ("COMPLETED", "Completada"),
+        ("FAILED", "Fallida"),
+    ]
+
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='invoices', verbose_name='Cliente')
     invoice_date = models.DateTimeField(auto_now_add=True, verbose_name='Datos de Factura')
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -116,6 +130,30 @@ class Invoice(models.Model):
         choices=[("PENDIENTE", "PENDIENTE"), ("PAGADA", "PAGADA")],
         default="PENDIENTE",
     )
+
+    # --- Pago (solo aplica cuando tipo_pago == 'CONTADO'; en CREDITO el pago
+    # se registra por cuota en creditos_ventas.PagoCuotaVenta) ---
+    metodo_pago = models.CharField(
+        max_length=15,
+        choices=METODO_PAGO_CHOICES,
+        blank=True,
+        null=True,
+        verbose_name='Método de pago',
+        help_text='Cómo se pagó la factura de contado. No aplica a facturas a crédito.',
+    )
+
+    # --- Datos de la transacción de PayPal (solo se llenan si metodo_pago == 'PAYPAL') ---
+    paypal_order_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='ID de orden PayPal')
+    paypal_capture_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='ID de captura PayPal')
+    paypal_status = models.CharField(
+        max_length=15, choices=PAYPAL_STATUS_CHOICES, blank=True, null=True, verbose_name='Estado PayPal'
+    )
+    paypal_payer_email = models.EmailField(blank=True, null=True, verbose_name='Correo del pagador (PayPal)')
+
+    # --- Trazabilidad del envío de la factura por correo ---
+    enviado_email = models.BooleanField(default=False, verbose_name='¿Enviada por correo?')
+    fecha_envio_email = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de envío por correo')
+
     class Meta: ordering = ['-invoice_date']
     def __str__(self): return f'Invoice #{self.id} - {self.customer}'
 
@@ -158,4 +196,3 @@ class InvoiceDetail(models.Model):
     def save(self, *args, **kwargs):
         self.subtotal = self.quantity * self.unit_price
         super().save(*args, **kwargs)
-

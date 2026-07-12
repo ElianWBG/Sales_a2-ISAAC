@@ -18,6 +18,7 @@ from shared.decorators import permission_required_with_message
 from .models import Purchase, PurchaseDetail
 from .forms import PurchaseForm, PurchaseDetailFormSet, PurchaseSearchForm
 from .purchase_pdf import generar_pdf_compra
+from shared.emails import send_purchase_email
 
 
 # ── Columnas disponibles para Compras ──
@@ -130,7 +131,22 @@ def purchase_create(request):
                     from creditos_compras.services import generar_cuotas
                     generar_cuotas(purchase, form.cleaned_data['num_cuotas'])
 
-            messages.success(request, f'Compra #{purchase.id} creada! Total: ${purchase.total}')
+            # Correo con la orden de compra en PDF al proveedor (si tiene correo registrado)
+            pdf_bytes = generar_pdf_compra(purchase)
+            enviado = send_purchase_email(purchase, pdf_bytes)
+
+            if enviado:
+                messages.success(
+                    request,
+                    f'Compra #{purchase.id} creada! Total: ${purchase.total}. '
+                    f'Se envió por correo a {purchase.supplier.email}.'
+                )
+            else:
+                messages.warning(
+                    request,
+                    f'Compra #{purchase.id} creada! Total: ${purchase.total}. '
+                    f'El proveedor no tiene correo registrado, no se envió la orden por email.'
+                )
             return redirect('purchasing:purchase_list')
     else:
         form = PurchaseForm()

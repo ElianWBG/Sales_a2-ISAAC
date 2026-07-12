@@ -55,4 +55,8 @@ urlpatterns = [
     path('invoices/<int:pk>/pdf/', views.invoice_pdf_view, name='invoice_pdf'),
     path('invoices/<int:pk>/delete/', views.InvoiceDeleteView.as_view(), name='invoice_delete'),
 
+    # PayPal (factura de contado)
+    path('invoices/<int:pk>/paypal/create-order/', views.invoice_paypal_create_order, name='invoice_paypal_create_order'),
+    path('invoices/<int:pk>/paypal/capture-order/', views.invoice_paypal_capture_order, name='invoice_paypal_capture_order'),
+
 ]

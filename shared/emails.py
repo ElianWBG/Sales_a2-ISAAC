@@ -64,3 +64,31 @@ def send_invoice_email(invoice, pdf_bytes):
     email.attach(f'factura_{invoice.id}.pdf', pdf_bytes, 'application/pdf')
     email.send(fail_silently=False)
     return True
+
+
+def send_purchase_email(purchase, pdf_bytes):
+    """
+    Envía la orden de compra al correo del proveedor, con el PDF adjunto.
+    Devuelve False (sin lanzar error) si el proveedor no tiene correo
+    registrado, para que la vista pueda avisar sin romperse.
+    """
+    supplier_email = getattr(purchase.supplier, 'email', None)
+    if not supplier_email:
+        return False
+
+    subject = f'Orden de Compra #{purchase.id} - Sistema de Ventas'
+    body = (
+        f'Hola {purchase.supplier.name},\n\n'
+        f'Adjunto encontrarás la orden de compra #{purchase.id} por un total de '
+        f'${purchase.total}.\n\n'
+        f'Saludos.'
+    )
+    email = EmailMessage(
+        subject=subject,
+        body=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[supplier_email],
+    )
+    email.attach(f'compra_{purchase.id}.pdf', pdf_bytes, 'application/pdf')
+    email.send(fail_silently=False)
+    return True

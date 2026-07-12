@@ -2,7 +2,6 @@ from django import forms
 from django.utils import timezone
 from .models import PagoCuotaVenta
 
-
 class PagoCuotaVentaForm(forms.ModelForm):
     """
     Formulario de registro de pago de una cuota. Requiere la cuota como
@@ -10,15 +9,17 @@ class PagoCuotaVentaForm(forms.ModelForm):
     """
     class Meta:
         model = PagoCuotaVenta
-        fields = ['fecha', 'valor', 'observacion']
+        fields = ['fecha', 'valor', 'metodo_pago', 'observacion']
         widgets = {
             'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'valor': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
+            'metodo_pago': forms.Select(attrs={'class': 'form-select'}),
             'observacion': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
         labels = {
             'fecha': 'Fecha de pago',
             'valor': 'Valor pagado',
+            'metodo_pago': 'Método de pago',
             'observacion': 'Observación',
         }
 
@@ -26,6 +27,13 @@ class PagoCuotaVentaForm(forms.ModelForm):
         self.cuota = cuota
         super().__init__(*args, **kwargs)
         self.fields['observacion'].required = False
+        self.fields['metodo_pago'].required = True
+
+    def clean_metodo_pago(self):
+        metodo = self.cleaned_data.get('metodo_pago')
+        if not metodo:
+            raise forms.ValidationError('Selecciona un método de pago.')
+        return metodo
 
     def clean_valor(self):
         valor = self.cleaned_data.get('valor')

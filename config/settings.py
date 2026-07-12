@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,10 +21,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-v6jps@3n-%^faq4em1drs%0!tp_&0vo=2ho5zr6t-$-r_+27+*'
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-CAMBIA-ESTO-EN-TU-.env')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = []
 
@@ -134,20 +135,27 @@ LOGIN_URL = '/accounts/login/'
 
 
 # ── Correo (Gmail SMTP) ──────────────────────────────────────────────────
-# 1. Activa verificación en 2 pasos en tu cuenta de Gmail.
-# 2. Genera una "Contraseña de aplicación" en:
-#    https://myaccount.google.com/apppasswords
-# 3. Reemplaza los dos valores de abajo por los tuyos (NO tu contraseña
-#    normal de Gmail, sino la de 16 caracteres que te da ese link).
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'isaacloco335@gmail.com' 
-EMAIL_HOST_PASSWORD = 'cnoz pcir cbuw xglb'
+# Las credenciales YA NO viven aquí en texto plano: se leen del archivo
+# .env (que no se sube a git). Mira .env.example para saber qué variables
+# crear y cómo generar la "Contraseña de aplicación" en Gmail.
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend'
+)
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-# Mientras no hayas puesto tus credenciales reales arriba, puedes usar el
-# backend de consola (imprime el correo en la terminal en vez de enviarlo)
-# descomentando esta línea:
-# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# Nota: por defecto EMAIL_BACKEND queda en 'console' (imprime el correo en
+# la terminal en vez de enviarlo), así el proyecto sigue corriendo aunque
+# no hayas configurado el .env todavía. En cuanto pongas EMAIL_HOST_USER /
+# EMAIL_HOST_PASSWORD reales en tu .env, cambia también EMAIL_BACKEND=
+# django.core.mail.backends.smtp.EmailBackend ahí mismo.
+
+
+# ── PayPal (Checkout API v2 - sandbox) ───────────────────────────────────
+PAYPAL_CLIENT_ID = config('PAYPAL_CLIENT_ID', default='')
+PAYPAL_CLIENT_SECRET = config('PAYPAL_CLIENT_SECRET', default='')
+PAYPAL_MODE = config('PAYPAL_MODE', default='sandbox')  # 'sandbox' o 'live'

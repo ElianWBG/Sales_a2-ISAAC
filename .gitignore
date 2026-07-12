@@ -1,0 +1,17 @@
+# Entorno
+.env
+ent_sales_a2/
+venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+
+# Base de datos y media (no deberían ir al repo del código)
+dbsalesA2.sqlite3
+media/
+
+# Editor
+.vscode/
+.idea/

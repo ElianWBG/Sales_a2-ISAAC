@@ -18,9 +18,21 @@
           <strong>Tipo de pago:</strong> {{ invoice.tipo_pago }}
           <span class="badge {% if invoice.estado == 'PAGADA' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ invoice.estado }}</span>
         </p>
+        {% if invoice.tipo_pago == 'CONTADO' and invoice.metodo_pago %}
+        <p><strong>Método de pago:</strong> {{ invoice.get_metodo_pago_display }}</p>
+        {% endif %}
         {% if invoice.tipo_pago == 'CREDITO' %}<p><strong>Saldo pendiente:</strong> ${{ invoice.saldo }}</p>{% endif %}
       </div>
     </div>
+
+    {% if invoice.estado == 'PENDIENTE' and invoice.metodo_pago == 'PAYPAL' %}
+    <div class="alert alert-info">
+      <p class="mb-2">Esta factura todavía no está pagada. Completa el pago con PayPal para confirmarla:</p>
+      <form id="paypal-csrf-form">{% csrf_token %}</form>
+      <div id="paypal-button-container" style="max-width: 300px;"></div>
+      <div id="paypal-error" class="text-danger small mt-2" style="display:none;"></div>
+    </div>
+    {% endif %}
     <table class="table table-bordered">
       <thead class="table-dark">
         <tr>
@@ -66,4 +78,55 @@
     {% endif %}
   </div>
 </div>
+
+{% if invoice.estado == 'PENDIENTE' and invoice.metodo_pago == 'PAYPAL' %}
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency=USD"></script>
+<script>
+(function () {
+  var createOrderUrl = "{% url 'billing:invoice_paypal_create_order' invoice.pk %}";
+  var captureOrderUrl = "{% url 'billing:invoice_paypal_capture_order' invoice.pk %}";
+  var errorBox = document.getElementById('paypal-error');
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.style.display = '';
+  }
+
+  function csrfToken() {
+    var input = document.querySelector('#paypal-csrf-form [name=csrfmiddlewaretoken]');
+    return input ? input.value : '';
+  }
+
+  paypal.Buttons({
+    createOrder: function () {
+      return fetch(createOrderUrl, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'X-CSRFToken': csrfToken() },
+      })
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+          if (data.error) { showError(data.error); throw new Error(data.error); }
+          return data.id;
+        });
+    },
+    onApprove: function () {
+      return fetch(captureOrderUrl, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'X-CSRFToken': csrfToken() },
+      })
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+          if (data.error) { showError(data.error); return; }
+          window.location.reload();
+        });
+    },
+    onError: function (err) {
+      showError('Ocurrió un error con PayPal. Intenta de nuevo.');
+    },
+  }).render('#paypal-button-container');
+})();
+</script>
+{% endif %}
 {% endblock %}

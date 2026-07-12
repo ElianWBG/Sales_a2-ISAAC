@@ -40,7 +40,7 @@ class PurchaseDetailForm(forms.ModelForm):
     """
     quantity = forms.IntegerField(
         min_value=1, label='Cantidad',
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'value': 1}),
     )
 
     class Meta:

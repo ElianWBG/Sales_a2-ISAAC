@@ -25,6 +25,11 @@
           {{ form.tipo_pago }}
           {% for error in form.tipo_pago.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
         </div>
+        <div class="col-md-6" id="metodo-pago-wrapper">
+          <label class="form-label fw-bold">Método de pago</label>
+          {{ form.metodo_pago }}
+          {% for error in form.metodo_pago.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+        </div>
         <div class="col-md-6" id="num-cuotas-wrapper">
           <label class="form-label fw-bold">{{ form.num_cuotas.label }}</label>
           {{ form.num_cuotas }}
@@ -32,6 +37,7 @@
           {% for error in form.num_cuotas.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
         </div>
       </div>
+
       {% if form.non_field_errors %}
         <div class="alert alert-danger">{{ form.non_field_errors }}</div>
       {% endif %}
@@ -257,21 +263,30 @@
 
   recalcAll();
 
-  // ── Mostrar "Número de cuotas" solo si el tipo de pago es CREDITO ──
+// ── "Número de cuotas" solo si CREDITO; "Método de pago" solo si CONTADO ──
   var tipoPagoSelect = document.getElementById('id_tipo_pago');
   var numCuotasWrapper = document.getElementById('num-cuotas-wrapper');
+  var metodoPagoWrapper = document.getElementById('metodo-pago-wrapper');
+  var metodoPagoSelect = document.getElementById('id_metodo_pago');
 
   function toggleNumCuotas() {
-    if (!tipoPagoSelect || !numCuotasWrapper) return;
-    numCuotasWrapper.style.display = tipoPagoSelect.value === 'CREDITO' ? '' : 'none';
+    if (!tipoPagoSelect || !numCuotasWrapper || !metodoPagoWrapper) return;
+    var esCredito = tipoPagoSelect.value === 'CREDITO';
+    numCuotasWrapper.style.display = esCredito ? '' : 'none';
+    metodoPagoWrapper.style.display = esCredito ? 'none' : '';
+    // Si pasa a CREDITO, limpiamos metodo_pago para que no viaje un valor
+    // "fantasma" que el form igual va a descartar en el clean().
+    if (esCredito && metodoPagoSelect) {
+      metodoPagoSelect.value = '';
+    }
   }
 
   if (tipoPagoSelect) {
     tipoPagoSelect.addEventListener('change', toggleNumCuotas);
     toggleNumCuotas();
   }
-
-  // ── Modal: Nuevo Cliente (alta rápida sin perder el progreso de la factura) ──
+  
+// ── Modal: Nuevo Cliente (alta rápida sin perder el progreso de la factura) ──
   var customerModalEl = document.getElementById('modalNuevoCliente');
   var customerModalBody = document.getElementById('modalNuevoClienteBody');
   var customerSelect = document.getElementById('id_customer');

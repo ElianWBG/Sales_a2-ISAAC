@@ -1,11 +1,12 @@
 from decimal import Decimal
 from datetime import date
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -13,6 +14,7 @@ from django.views.generic import ListView, DeleteView
 
 from billing.models import Invoice
 from shared.mixins import ProtectedDeleteMixin
+from shared.paypal_client import create_paypal_order, capture_paypal_order, extract_capture_data, PayPalError
 
 from .models import CuotaVenta, PagoCuotaVenta
 from .forms import PagoCuotaVentaForm
@@ -87,9 +89,19 @@ def registrar_pago(request, cuota_pk):
     if request.method == 'POST':
         form = PagoCuotaVentaForm(request.POST, cuota=cuota)
         if form.is_valid():
+            pago = form.save(commit=False)
+            pago.cuota = cuota
+
+            if pago.metodo_pago == 'PAYPAL':
+                # Igual que con la factura de contado: NO se confirma el
+                # pago (ni se recalcula saldo) todavía. Se guarda el
+                # registro para tener un pk que usar en los endpoints AJAX
+                # de create-order/capture-order, y recién se recalcula
+                # cuando PayPal confirme la captura.
+                pago.save()
+                return redirect('creditos_ventas:pago_paypal_checkout', pago_pk=pago.pk)
+
             with transaction.atomic():
-                pago = form.save(commit=False)
-                pago.cuota = cuota
                 pago.save()
                 recalcular_cuota(cuota)
                 recalcular_factura(cuota.factura)
@@ -103,6 +115,69 @@ def registrar_pago(request, cuota_pk):
 
     return render(request, 'creditos_ventas/registrar_pago.html', {'form': form, 'cuota': cuota})
 
+@login_required
+def pago_paypal_checkout(request, pago_pk):
+    """Pantalla con el botón de PayPal para terminar de pagar una cuota."""
+    pago = get_object_or_404(PagoCuotaVenta, pk=pago_pk)
+    if pago.metodo_pago != 'PAYPAL' or pago.paypal_status == 'COMPLETED':
+        messages.info(request, 'Este pago no admite (o ya no necesita) confirmación con PayPal.')
+        return redirect('creditos_ventas:cuotas_factura', pk=pago.cuota.factura_id)
+    return render(request, 'creditos_ventas/pago_paypal_checkout.html', {
+        'pago': pago,
+        'cuota': pago.cuota,
+        'paypal_client_id': settings.PAYPAL_CLIENT_ID,
+    })
+
+
+@login_required
+def pago_paypal_create_order(request, pago_pk):
+    """Endpoint AJAX: pide a PayPal el order_id antes de abrir el checkout."""
+    pago = get_object_or_404(PagoCuotaVenta, pk=pago_pk)
+    if pago.metodo_pago != 'PAYPAL' or pago.paypal_status == 'COMPLETED':
+        return JsonResponse({'error': 'Este pago no admite PayPal en este momento.'}, status=400)
+    try:
+        order = create_paypal_order(
+            pago.valor,
+            description=f'Cuota {pago.cuota.numero} - Factura #{pago.cuota.factura_id}'
+        )
+    except PayPalError as e:
+        return JsonResponse({'error': str(e)}, status=502)
+
+    pago.paypal_order_id = order['id']
+    pago.paypal_status = 'CREATED'
+    pago.save(update_fields=['paypal_order_id', 'paypal_status'])
+    return JsonResponse({'id': order['id']})
+
+
+@login_required
+def pago_paypal_capture_order(request, pago_pk):
+    """Endpoint AJAX: confirma la captura y recién ahí recalcula cuota/factura."""
+    pago = get_object_or_404(PagoCuotaVenta, pk=pago_pk)
+    if not pago.paypal_order_id:
+        return JsonResponse({'error': 'Este pago no tiene una orden de PayPal creada.'}, status=400)
+
+    try:
+        capture = capture_paypal_order(pago.paypal_order_id)
+    except PayPalError as e:
+        return JsonResponse({'error': str(e)}, status=502)
+
+    data = extract_capture_data(capture)
+    pago.paypal_capture_id = data['capture_id']
+    pago.paypal_status = data['status']
+    pago.paypal_payer_email = data['payer_email']
+
+    if data['status'] != 'COMPLETED':
+        pago.save()
+        return JsonResponse(
+            {'error': f'PayPal no completó el pago (estado: {data["status"]}).'}, status=400
+        )
+
+    with transaction.atomic():
+        pago.save()
+        recalcular_cuota(pago.cuota)
+        recalcular_factura(pago.cuota.factura)
+
+    return JsonResponse({'status': 'COMPLETED'})
 
 @login_required
 def pagar_cuotas_lote(request, invoice_pk):

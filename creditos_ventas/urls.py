@@ -10,6 +10,10 @@ urlpatterns = [
 
     path('cuota/<int:cuota_pk>/pagar/', views.registrar_pago, name='registrar_pago'),
     path('factura/<int:invoice_pk>/cuotas/pagar-lote/', views.pagar_cuotas_lote, name='pagar_cuotas_lote'),
+    # PayPal (pago de una cuota de crédito)
+    path('pago/<int:pago_pk>/paypal/', views.pago_paypal_checkout, name='pago_paypal_checkout'),
+    path('pago/<int:pago_pk>/paypal/create-order/', views.pago_paypal_create_order, name='pago_paypal_create_order'),
+    path('pago/<int:pago_pk>/paypal/capture-order/', views.pago_paypal_capture_order, name='pago_paypal_capture_order'),
 
     path('cuota/<int:pk>/pagos/', views.HistorialPagosCuotaView.as_view(), name='historial_pagos_cuota'),
     path('factura/<int:pk>/pagos/', views.HistorialPagosFacturaView.as_view(), name='historial_pagos_factura'),
