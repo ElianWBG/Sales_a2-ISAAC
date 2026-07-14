@@ -15,3 +15,5 @@ media/
 # Editor
 .vscode/
 .idea/
+
+datadump.json
