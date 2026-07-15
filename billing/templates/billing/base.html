@@ -21,28 +21,28 @@
         {% if user.is_authenticated %}
 
         <!-- COMPRAS: Analista de Compras y Administrador -->
-        {% if perms.billing.view_brand %}
+        {% if perms.billing.view_brand or perms.billing.add_brand or perms.billing.change_brand or perms.billing.delete_brand %}
         <li class="nav-item"><a class="nav-link" href="{% url 'billing:brand_list' %}">Marcas</a></li>
         {% endif %}
-        {% if perms.purchasing.view_purchase %}
+        {% if perms.purchasing.view_purchase or perms.purchasing.add_purchase or perms.purchasing.change_purchase or perms.purchasing.delete_purchase %}
         <li class="nav-item"><a class="nav-link" href="{% url 'purchasing:purchase_list' %}">Compras</a></li>
         <li class="nav-item"><a class="nav-link" href="{% url 'creditos_compras:cuotas_pendientes' %}">Cuotas Pendientes</a></li>
         {% endif %}
-        {% if perms.billing.view_productgroup %}
+        {% if perms.billing.view_productgroup or perms.billing.add_productgroup or perms.billing.change_productgroup or perms.billing.delete_productgroup %}
         <li class="nav-item"><a class="nav-link" href="{% url 'billing:productgroup_list' %}">Grupos</a></li>
         {% endif %}
-        {% if perms.billing.view_supplier %}
+        {% if perms.billing.view_supplier or perms.billing.add_supplier or perms.billing.change_supplier or perms.billing.delete_supplier %}
         <li class="nav-item"><a class="nav-link" href="{% url 'billing:supplier_list' %}">Proveedores</a></li>
         {% endif %}
-        {% if perms.billing.view_product %}
+        {% if perms.billing.view_product or perms.billing.add_product or perms.billing.change_product or perms.billing.delete_product %}
         <li class="nav-item"><a class="nav-link" href="{% url 'billing:product_list' %}">Productos</a></li>
         {% endif %}
 
         <!-- VENTAS: Vendedor y Administrador -->
-        {% if perms.billing.view_customer %}
+        {% if perms.billing.view_customer or perms.billing.add_customer or perms.billing.change_customer or perms.billing.delete_customer %}
         <li class="nav-item"><a class="nav-link" href="{% url 'billing:customer_list' %}">Clientes</a></li>
         {% endif %}
-        {% if perms.billing.view_invoice %}
+        {% if perms.billing.view_invoice or perms.billing.add_invoice or perms.billing.change_invoice or perms.billing.delete_invoice %}
         <li class="nav-item"><a class="nav-link" href="{% url 'billing:invoice_list' %}">Facturas</a></li>
         <li class="nav-item"><a class="nav-link" href="{% url 'creditos_ventas:cuotas_pendientes' %}">Cuotas Pendientes</a></li>
         {% endif %}

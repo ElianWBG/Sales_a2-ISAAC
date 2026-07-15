@@ -13,7 +13,8 @@ from django.utils import timezone
 from django.views.generic import ListView, DeleteView
 
 from billing.models import Invoice
-from shared.mixins import ProtectedDeleteMixin
+from shared.mixins import ProtectedDeleteMixin, PermissionRequiredMixin, AnyCrudPermissionRequiredMixin
+from shared.decorators import permission_required_with_message, any_crud_permission_required
 from shared.paypal_client import create_paypal_order, capture_paypal_order, extract_capture_data, PayPalError
 
 from .models import CuotaVenta, PagoCuotaVenta
@@ -24,7 +25,7 @@ from .plan_pagos_pdf import generar_pdf_plan_pagos
 
 # === CUOTAS ===
 
-class CuotaListView(LoginRequiredMixin, ListView):
+class CuotaListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     """Cuotas de UNA factura específica."""
     model = CuotaVenta
     template_name = 'creditos_ventas/cuota_list.html'
@@ -40,7 +41,7 @@ class CuotaListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class CuotaPendientesListView(LoginRequiredMixin, ListView):
+class CuotaPendientesListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     """Todas las cuotas PENDIENTES del sistema, sin importar la factura."""
     model = CuotaVenta
     template_name = 'creditos_ventas/cuota_pendientes_list.html'
@@ -60,7 +61,7 @@ class CuotaPendientesListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class CuotaDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, DeleteView):
+class CuotaDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
     """
     Elimina una cuota. PagoCuotaVenta.cuota usa on_delete=PROTECT, así que
     si la cuota ya tiene pagos registrados, ProtectedDeleteMixin lo bloquea
@@ -70,6 +71,8 @@ class CuotaDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, DeleteView):
     template_name = 'creditos_ventas/cuota_confirm_delete.html'
     protected_message = 'No se puede eliminar la cuota porque tiene pagos registrados.'
     success_message = 'Cuota eliminada correctamente.'
+    permission_required = 'creditos_ventas.delete_cuotaventa'
+    permission_redirect_url = '/'
 
     def get_success_url(self):
         return reverse('creditos_ventas:cuotas_factura', kwargs={'pk': self.object.factura_id})
@@ -78,6 +81,7 @@ class CuotaDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, DeleteView):
 # === PAGOS ===
 
 @login_required
+@permission_required_with_message('creditos_ventas.add_pagocuotaventa', redirect_url='/')
 def registrar_pago(request, cuota_pk):
     """Registra un pago sobre una cuota y recalcula cuota + factura."""
     cuota = get_object_or_404(CuotaVenta, pk=cuota_pk)
@@ -116,6 +120,7 @@ def registrar_pago(request, cuota_pk):
     return render(request, 'creditos_ventas/registrar_pago.html', {'form': form, 'cuota': cuota})
 
 @login_required
+@permission_required_with_message('creditos_ventas.add_pagocuotaventa', redirect_url='/')
 def pago_paypal_checkout(request, pago_pk):
     """Pantalla con el botón de PayPal para terminar de pagar una cuota."""
     pago = get_object_or_404(PagoCuotaVenta, pk=pago_pk)
@@ -130,6 +135,7 @@ def pago_paypal_checkout(request, pago_pk):
 
 
 @login_required
+@permission_required_with_message('creditos_ventas.add_pagocuotaventa', redirect_url='/')
 def pago_paypal_create_order(request, pago_pk):
     """Endpoint AJAX: pide a PayPal el order_id antes de abrir el checkout."""
     pago = get_object_or_404(PagoCuotaVenta, pk=pago_pk)
@@ -150,6 +156,7 @@ def pago_paypal_create_order(request, pago_pk):
 
 
 @login_required
+@permission_required_with_message('creditos_ventas.add_pagocuotaventa', redirect_url='/')
 def pago_paypal_capture_order(request, pago_pk):
     """Endpoint AJAX: confirma la captura y recién ahí recalcula cuota/factura."""
     pago = get_object_or_404(PagoCuotaVenta, pk=pago_pk)
@@ -180,6 +187,7 @@ def pago_paypal_capture_order(request, pago_pk):
     return JsonResponse({'status': 'COMPLETED'})
 
 @login_required
+@permission_required_with_message('creditos_ventas.add_pagocuotaventa', redirect_url='/')
 def pagar_cuotas_lote(request, invoice_pk):
     """
     Paga el saldo COMPLETO de varias cuotas de una misma factura en un
@@ -204,7 +212,14 @@ def pagar_cuotas_lote(request, invoice_pk):
         messages.error(request, 'La fecha de pago no es válida.')
         return redirect('creditos_ventas:cuotas_factura', pk=invoice.pk)
 
-    fecha_factura = invoice.invoice_date.date() if hasattr(invoice.invoice_date, 'date') else invoice.invoice_date
+    # .date() crudo trunca en UTC, no en hora local (ver mismo fix en
+    # creditos_ventas/services.py y forms.py).
+    if hasattr(invoice.invoice_date, 'tzinfo') and invoice.invoice_date.tzinfo is not None:
+        fecha_factura = timezone.localtime(invoice.invoice_date).date()
+    elif hasattr(invoice.invoice_date, 'date'):
+        fecha_factura = invoice.invoice_date.date()
+    else:
+        fecha_factura = invoice.invoice_date
     if fecha > timezone.localdate():
         messages.error(request, 'La fecha de pago no puede ser futura.')
         return redirect('creditos_ventas:cuotas_factura', pk=invoice.pk)
@@ -247,7 +262,7 @@ def pagar_cuotas_lote(request, invoice_pk):
     return redirect('creditos_ventas:cuotas_factura', pk=invoice.pk)
 
 
-class HistorialPagosCuotaView(LoginRequiredMixin, ListView):
+class HistorialPagosCuotaView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     """Historial de pagos de UNA cuota."""
     model = PagoCuotaVenta
     template_name = 'creditos_ventas/historial_pagos.html'
@@ -264,7 +279,7 @@ class HistorialPagosCuotaView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class HistorialPagosFacturaView(LoginRequiredMixin, ListView):
+class HistorialPagosFacturaView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     """Historial de pagos de TODAS las cuotas de una factura."""
     model = PagoCuotaVenta
     template_name = 'creditos_ventas/historial_pagos.html'
@@ -289,6 +304,7 @@ class HistorialPagosFacturaView(LoginRequiredMixin, ListView):
 # === PDF ===
 
 @login_required
+@permission_required_with_message('creditos_ventas.imprimir_plan_pagos', redirect_url='/')
 def plan_pagos_pdf_view(request, invoice_pk):
     """Genera el PDF del Plan de Pagos / Estado de Cuenta de una factura a crédito."""
     invoice = get_object_or_404(Invoice, pk=invoice_pk)

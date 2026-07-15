@@ -7,7 +7,8 @@ Mismo estilo visual que creditos_ventas/plan_pagos_pdf.py.
 """
 
 import io
-from datetime import datetime
+
+from django.utils import timezone
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -103,7 +104,7 @@ def generar_pdf_plan_pagos_compra(purchase):
     elements.append(Spacer(1, 1 * cm))
 
     elements.append(Paragraph(
-        f'Documento generado el {datetime.now().strftime("%d/%m/%Y a las %H:%M")}. '
+        f'Documento generado el {timezone.localtime().strftime("%d/%m/%Y a las %H:%M")}. '
         f'Refleja el estado de la compra al momento de imprimirlo, a diferencia de la '
         f'Compra (documento fijo).',
         styles['Normal'],

@@ -64,6 +64,10 @@
                     <th class="text-center">Crear</th>
                     <th class="text-center">Editar</th>
                     <th class="text-center">Eliminar</th>
+                    <th class="text-center">PDF</th>
+                    <th class="text-center">Excel</th>
+                    <th class="text-center">Reporte</th>
+                    <th class="text-center">Imprimir</th>
                     <th class="text-center">Todos</th>
                   </tr>
                 </thead>
@@ -73,9 +77,13 @@
                     <td class="fw-semibold">{{ model_name }}</td>
                     {% for action_label, info in actions %}
                     <td class="text-center">
+                      {% if info %}
                       <input type="checkbox" class="form-check-input perm-checkbox" name="permisos"
                              value="{{ info.perm.id }}" data-module="{{ module_id }}"
                              {% if info.checked %}checked{% endif %}>
+                      {% else %}
+                      <span class="text-muted">—</span>
+                      {% endif %}
                     </td>
                     {% endfor %}
                     <td class="text-center">

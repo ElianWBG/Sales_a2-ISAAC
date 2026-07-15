@@ -15,6 +15,9 @@ class CuotaCompra(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['compra', 'numero'], name='unique_cuota_numero_por_compra')
         ]
+        permissions = [
+            ('imprimir_plan_pagos', 'Puede imprimir el plan de pagos'),
+        ]
 
     def __str__(self):
         return f'Cuota {self.numero} - Compra #{self.compra_id}'

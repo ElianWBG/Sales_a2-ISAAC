@@ -1,7 +1,9 @@
 import io
-from datetime import datetime
 
+from django.contrib import messages
 from django.http import HttpResponse
+from django.shortcuts import redirect
+from django.utils import timezone
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -90,7 +92,7 @@ class ExportMixin:
             styles['Title'],
         ))
         elements.append(Paragraph(
-            f'Generado el {datetime.now().strftime("%d/%m/%Y a las %H:%M")}',
+            f'Generado el {timezone.localtime().strftime("%d/%m/%Y a las %H:%M")}',
             styles['Normal'],
         ))
         elements.append(Spacer(1, 0.5 * cm))
@@ -99,7 +101,7 @@ class ExportMixin:
             elements.append(Paragraph('No hay columnas seleccionadas para exportar.', styles['Normal']))
             doc.build(elements)
             buffer.seek(0)
-            fname = f'{self.export_filename}_{datetime.now().strftime("%Y%m%d")}.pdf'
+            fname = f'{self.export_filename}_{timezone.localtime().strftime("%Y%m%d")}.pdf'
             resp = HttpResponse(buffer.read(), content_type='application/pdf')
             resp['Content-Disposition'] = f'attachment; filename="{fname}"'
             return resp
@@ -143,7 +145,7 @@ class ExportMixin:
         doc.build(elements)
         buffer.seek(0)
 
-        fname = f'{self.export_filename}_{datetime.now().strftime("%Y%m%d")}.pdf'
+        fname = f'{self.export_filename}_{timezone.localtime().strftime("%Y%m%d")}.pdf'
         resp = HttpResponse(buffer.read(), content_type='application/pdf')
         resp['Content-Disposition'] = f'attachment; filename="{fname}"'
         return resp
@@ -202,7 +204,7 @@ class ExportMixin:
         wb.save(buffer)
         buffer.seek(0)
 
-        fname = f'{self.export_filename}_{datetime.now().strftime("%Y%m%d")}.xlsx'
+        fname = f'{self.export_filename}_{timezone.localtime().strftime("%Y%m%d")}.xlsx'
         resp = HttpResponse(
             buffer.read(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -210,13 +212,33 @@ class ExportMixin:
         resp['Content-Disposition'] = f'attachment; filename="{fname}"'
         return resp
 
+    # ── permiso de exportación ───────────────────────────────────────────
+
+    def get_export_permission(self, fmt):
+        """
+        'app_label.exportar_pdf_<modelo>' / 'app_label.exportar_excel_<modelo>',
+        derivado de self.model (mismo patrón que AnyCrudPermissionRequiredMixin).
+        """
+        opts = self.model._meta
+        return f'{opts.app_label}.exportar_{fmt}_{opts.model_name}'
+
     # ── interceptor de GET ────────────────────────────────────────────────
 
     def get(self, request, *args, **kwargs):
         fmt = request.GET.get('export')
-        if fmt == 'pdf':
-            return self.export_pdf(self.get_queryset())
-        if fmt == 'excel':
+        if fmt in ('pdf', 'excel'):
+            # No solo ocultar el botón: si alguien arma la URL a mano
+            # (?export=pdf) sin tener el permiso, debe rebotar igual que
+            # cualquier otro permiso del proyecto -- mensaje amigable, no
+            # un 403 crudo de Django.
+            if not request.user.has_perm(self.get_export_permission(fmt)):
+                messages.error(
+                    request,
+                    f'No tienes permiso para exportar {self.export_filename} a {fmt.upper()}.'
+                )
+                return redirect(request.path)
+            if fmt == 'pdf':
+                return self.export_pdf(self.get_queryset())
             return self.export_excel(self.get_queryset())
         return super().get(request, *args, **kwargs)
 

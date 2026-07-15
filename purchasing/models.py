@@ -40,6 +40,12 @@ class Purchase(models.Model):
                 name='unique_supplier_document'
             )
         ]
+        permissions = [
+            ('exportar_pdf_purchase', 'Puede exportar Compras a PDF'),
+            ('exportar_excel_purchase', 'Puede exportar Compras a Excel'),
+            ('view_purchase_report', 'Puede ver el reporte de compras'),
+            ('imprimir_orden_compra', 'Puede imprimir el documento de la orden de compra'),
+        ]
 
     def __str__(self):
         return f'Purchase #{self.id} - {self.supplier}'

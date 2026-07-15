@@ -3,6 +3,7 @@ from django.shortcuts import redirect
 from django.db.models import ProtectedError
 from django.contrib import messages
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.contrib.auth.mixins import PermissionRequiredMixin as DjangoPermissionRequiredMixin
 
 class StaffRequiredMixin:
@@ -132,3 +133,133 @@ class PermissionRequiredMixin(DjangoPermissionRequiredMixin):
             return super().handle_no_permission()
         messages.error(self.request, self.get_permission_denied_message())
         return redirect(self.permission_redirect_url)
+
+
+class SuccessUrlPreservePageMixin:
+    """
+    Mixin para DeleteView (CBV): al eliminar un registro desde una lista
+    paginada, conserva el número de página en el redirect en vez de volver
+    siempre a la página 1.
+
+    Requiere que el template de confirmación reenvíe `page` como campo
+    oculto del form (leído del `?page=` con el que se llegó a esa
+    pantalla) -- ver brand_confirm_delete.html y similares.
+
+    Uso (colocar ANTES de DeleteView en el MRO, junto a los demás mixins):
+        class ProductDeleteView(SuccessUrlPreservePageMixin, ProtectedDeleteMixin,
+                                 LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+            success_url = reverse_lazy('billing:product_list')
+    """
+    def get_success_url(self):
+        url = super().get_success_url()
+        page = self.request.POST.get('page') or self.request.GET.get('page')
+        if page and page.isdigit():
+            url = f'{url}?page={page}'
+        return url
+
+
+class GracefulPaginationMixin:
+    """
+    Mixin para ListView: si el `?page=N` solicitado ya no existe (ej. se
+    acaba de eliminar el único registro que quedaba en esa página, y
+    SuccessUrlPreservePageMixin/redirect_preserving_page redirigieron ahí),
+    cae a la última página válida en vez de tirar un 404.
+
+    Reimplementa MultipleObjectMixin.paginate_queryset (mismo comportamiento
+    que Django salvo en el manejo de página inválida): en vez de levantar
+    Http404, recorta el número de página al rango [1, num_pages].
+
+    Uso (colocar en cualquier posición antes de ListView en el MRO):
+        class ProductListView(GracefulPaginationMixin, ExportMixin,
+                               LoginRequiredMixin, PermissionRequiredMixin, ListView):
+            paginate_by = 3
+    """
+    def paginate_queryset(self, queryset, page_size):
+        paginator = self.get_paginator(
+            queryset, page_size,
+            orphans=self.get_paginate_orphans(),
+            allow_empty_first_page=self.get_allow_empty(),
+        )
+        page_kwarg = self.page_kwarg
+        page_param = self.kwargs.get(page_kwarg) or self.request.GET.get(page_kwarg) or 1
+
+        try:
+            page_number = int(page_param)
+        except (TypeError, ValueError):
+            page_number = paginator.num_pages if page_param == 'last' else 1
+
+        page_number = max(1, min(page_number, paginator.num_pages))
+        page = paginator.page(page_number)
+        return (paginator, page, page.object_list, page.has_other_pages())
+
+
+def has_any_crud_permission(user, app_label, model_name):
+    """
+    True si `user` tiene AL MENOS UNO de los 4 permisos nativos de Django
+    (view/add/change/delete) sobre `app_label.model_name`.
+
+    Django no ofrece esto de fábrica: PermissionRequiredMixin, cuando se
+    le pasan varios permisos, exige TODOS (AND vía user.has_perms()). Acá
+    se necesita lo contrario -- que baste con cualquiera de los 4 (OR) --
+    así que se arma a mano con any(). user.has_perm() ya deja pasar al
+    superusuario automáticamente, no hace falta chequearlo aparte.
+
+    Fase 2b: reemplaza el acceso abierto temporal de la Fase 2a en las
+    22 vistas de billing/purchasing/creditos_ventas/creditos_compras que
+    antes bloqueaban con un único view_<modelo> (AnyCrudPermissionRequiredMixin,
+    any_crud_permission_required) y en los links del navbar (base.html).
+    """
+    return any(
+        user.has_perm(f'{app_label}.{action}_{model_name}')
+        for action in ('view', 'add', 'change', 'delete')
+    )
+
+
+class AnyCrudPermissionRequiredMixin:
+    """
+    Mixin para CBV (ListView/DetailView): exige que el usuario tenga AL
+    MENOS UNO de los 4 permisos nativos (view/add/change/delete) sobre
+    `self.model` -- lógica OR, no la lógica AND de PermissionRequiredMixin.
+
+    Deriva app_label/model_name de `self.model` automáticamente; solo
+    hace falta sobreescribir get_permission_app_label_model() si la vista
+    no tiene `model` seteado directo (no es el caso de ninguna de las 22
+    vistas de billing/purchasing/creditos_ventas/creditos_compras).
+
+    Uso (colocar DESPUÉS de LoginRequiredMixin en el MRO, mismo orden que
+    ya se usaba con PermissionRequiredMixin):
+        class ProductListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
+            model = Product
+    """
+    permission_redirect_url = '/'
+    permission_denied_message = 'No tienes permiso para acceder a esta sección.'
+
+    def get_permission_app_label_model(self):
+        opts = self.model._meta
+        return opts.app_label, opts.model_name
+
+    def has_permission(self):
+        app_label, model_name = self.get_permission_app_label_model()
+        return has_any_crud_permission(self.request.user, app_label, model_name)
+
+    def dispatch(self, request, *args, **kwargs):
+        if not self.has_permission():
+            messages.error(request, self.permission_denied_message)
+            return redirect(self.permission_redirect_url)
+        return super().dispatch(request, *args, **kwargs)
+
+
+def redirect_preserving_page(request, url_name):
+    """
+    Igual que SuccessUrlPreservePageMixin, pero para vistas basadas en
+    función (FBV): redirige a `url_name` conservando el `?page=N` leído
+    del POST/GET de la petición, en vez de volver siempre a la página 1.
+
+    Uso:
+        return redirect_preserving_page(request, 'billing:brand_list')
+    """
+    url = reverse(url_name)
+    page = request.POST.get('page') or request.GET.get('page')
+    if page and page.isdigit():
+        url = f'{url}?page={page}'
+    return redirect(url)

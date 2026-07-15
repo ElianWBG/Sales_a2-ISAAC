@@ -54,12 +54,16 @@
       <i class="bi bi-layout-three-columns"></i> Campos
       <span class="badge bg-secondary ms-1" id="colBadge">…</span>
     </button>
+    {% if perms.billing.exportar_pdf_invoice %}
     <a id="btnPdf" href="#" class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1">
       <i class="bi bi-file-earmark-pdf-fill"></i>PDF
     </a>
+    {% endif %}
+    {% if perms.billing.exportar_excel_invoice %}
     <a id="btnExcel" href="#" class="btn btn-outline-success btn-sm d-inline-flex align-items-center gap-1">
       <i class="bi bi-file-earmark-excel-fill"></i>Excel
     </a>
+    {% endif %}
     {% if perms.billing.add_invoice %}
     <a href="{% url 'billing:invoice_create' %}" class="btn btn-primary btn-sm">
       <i class="bi bi-plus-lg"></i> Nuevo
@@ -131,11 +135,13 @@
           <td data-col="tax">${{ item.tax }}</td>
           <td data-col="total"><strong>${{ item.total }}</strong></td>
           <td class="text-end text-nowrap">
+            {% if perms.billing.view_invoice %}
             <a href="{% url 'billing:invoice_detail' item.pk %}" class="btn btn-sm btn-info" title="Ver" aria-label="Ver">
               <i class="bi bi-eye"></i>
             </a>
+            {% endif %}
             {% if perms.billing.delete_invoice %}
-            <a href="{% url 'billing:invoice_delete' item.pk %}" class="btn btn-sm btn-danger" title="Eliminar" aria-label="Eliminar">
+            <a href="{% url 'billing:invoice_delete' item.pk %}?page={{ page_obj.number }}" class="btn btn-sm btn-danger" title="Eliminar" aria-label="Eliminar">
               <i class="bi bi-trash"></i>
             </a>
             {% endif %}
@@ -240,8 +246,14 @@
   function updateExportLinks(cols) {
     const colsStr = cols.join(',');
     const prefix = BASE_PARAMS ? BASE_PARAMS + '&' : '';
-    document.getElementById('btnPdf').href = `?${prefix}cols=${encodeURIComponent(colsStr)}&export=pdf`;
-    document.getElementById('btnExcel').href = `?${prefix}cols=${encodeURIComponent(colsStr)}&export=excel`;
+    // btnPdf/btnExcel solo existen en el DOM si el usuario tiene el permiso
+    // de exportar (perms.app.exportar_pdf_x / exportar_excel_x en el
+    // template) -- "Campos" no depende de ese permiso, así que no puede
+    // asumir que estos botones estén presentes.
+    const btnPdf = document.getElementById('btnPdf');
+    const btnExcel = document.getElementById('btnExcel');
+    if (btnPdf) btnPdf.href = `?${prefix}cols=${encodeURIComponent(colsStr)}&export=pdf`;
+    if (btnExcel) btnExcel.href = `?${prefix}cols=${encodeURIComponent(colsStr)}&export=excel`;
   }
 
   function updateBadge(count) {

@@ -22,8 +22,12 @@ from .forms import (
 )
 
 from decimal import Decimal
-from shared.mixins import StaffRequiredMixin, ProtectedDeleteMixin, PermissionRequiredMixin
-from shared.decorators import audit_action, permission_required_with_message
+from shared.mixins import (
+    StaffRequiredMixin, ProtectedDeleteMixin, PermissionRequiredMixin,
+    SuccessUrlPreservePageMixin, redirect_preserving_page, GracefulPaginationMixin,
+    AnyCrudPermissionRequiredMixin,
+)
+from shared.decorators import audit_action, permission_required_with_message, any_crud_permission_required
 from shared.emails import send_invoice_email
 from shared.paypal_client import create_paypal_order, capture_paypal_order, extract_capture_data, PayPalError
 from security.views import AdminOnlyMixin
@@ -301,15 +305,13 @@ INVOICE_ALL_COLUMNS = [
 ]
 
 # === BRAND (CBV) ===
-class BrandListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class BrandListView(GracefulPaginationMixin, ExportMixin, LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     model = Brand
     template_name = 'billing/brand_list.html'
     context_object_name = 'items'
     paginate_by = 3
     export_filename = 'marcas'
     ALL_COLUMNS = BRAND_ALL_COLUMNS
-    permission_required = 'billing.view_brand'
-    permission_redirect_url = '/'
 
     def get_active_col_keys(self):
         cols_param = self.request.GET.get('cols', '').strip()
@@ -394,26 +396,22 @@ def brand_delete(request, pk):
                 request,
                 f'No se puede eliminar "{brand.name}" porque tiene productos asociados.'
             )
-        return redirect('billing:brand_list')
+        return redirect_preserving_page(request, 'billing:brand_list')
     return render(request, 'billing/brand_confirm_delete.html', {'object': brand})
 
-class BrandDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
+class BrandDetailView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, DetailView):
     model = Brand
     template_name = 'billing/brand_detail.html'
     context_object_name = 'brand'
-    permission_required = 'billing.view_brand'
-    permission_redirect_url = '/'
 
 # === PRODUCTGROUP (CBV) ===
-class ProductGroupListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class ProductGroupListView(GracefulPaginationMixin, ExportMixin, LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     model = ProductGroup
     template_name = 'billing/product_group_list.html'
     context_object_name = 'items'
     paginate_by = 3
     export_filename = 'grupos'
     ALL_COLUMNS = PRODUCTGROUP_ALL_COLUMNS
-    permission_required = 'billing.view_productgroup'
-    permission_redirect_url = '/'
 
     def get_active_col_keys(self):
         cols_param = self.request.GET.get('cols', '').strip()
@@ -473,7 +471,7 @@ class ProductGroupUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Update
     permission_required = 'billing.change_productgroup'
     permission_redirect_url = '/groups/'
 
-class ProductGroupDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+class ProductGroupDeleteView(SuccessUrlPreservePageMixin, ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
     model = ProductGroup
     template_name = 'billing/product_group_confirm_delete.html'
     success_url = reverse_lazy('billing:productgroup_list')
@@ -481,23 +479,19 @@ class ProductGroupDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, Permissio
     permission_required = 'billing.delete_productgroup'
     permission_redirect_url = '/groups/'
 
-class ProductGroupDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
+class ProductGroupDetailView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, DetailView):
     model = ProductGroup
     template_name = 'billing/product_group_detail.html'
     context_object_name = 'productgroup'
-    permission_required = 'billing.view_productgroup'
-    permission_redirect_url = '/'
 
 # === SUPPLIER (CBV) ===
-class SupplierListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class SupplierListView(GracefulPaginationMixin, ExportMixin, LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     model = Supplier
     template_name = 'billing/supplier_list.html'
     context_object_name = 'items'
     paginate_by = 3
     export_filename = 'proveedores'
     ALL_COLUMNS = SUPPLIER_ALL_COLUMNS
-    permission_required = 'billing.view_supplier'
-    permission_redirect_url = '/'
 
     def get_active_col_keys(self):
         cols_param = self.request.GET.get('cols', '').strip()
@@ -560,7 +554,7 @@ class SupplierUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView
     success_url = reverse_lazy('billing:supplier_list')
     permission_required = 'billing.change_supplier'
     permission_redirect_url = '/suppliers/'
-class SupplierDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, StaffRequiredMixin, PermissionRequiredMixin, DeleteView):
+class SupplierDeleteView(SuccessUrlPreservePageMixin, ProtectedDeleteMixin, LoginRequiredMixin, StaffRequiredMixin, PermissionRequiredMixin, DeleteView):
     model = Supplier
     template_name = 'billing/supplier_confirm_delete.html'
     success_url = reverse_lazy('billing:supplier_list')
@@ -568,23 +562,19 @@ class SupplierDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, StaffRequired
     protected_message = 'No se puede eliminar el proveedor porque tiene productos asociados.'
     permission_required = 'billing.delete_supplier'
     permission_redirect_url = '/suppliers/'
-class SupplierDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
+class SupplierDetailView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, DetailView):
     model = Supplier
     template_name = 'billing/supplier_detail.html'
     context_object_name = 'supplier'
-    permission_required = 'billing.view_supplier'
-    permission_redirect_url = '/'
 
 # === PRODUCT (CBV) ===
-class ProductListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class ProductListView(GracefulPaginationMixin, ExportMixin, LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     model = Product
     template_name = 'billing/product_list.html'
     context_object_name = 'items'
     paginate_by = 3
     export_filename = 'productos'
     ALL_COLUMNS = PRODUCT_ALL_COLUMNS
-    permission_required = 'billing.view_product'
-    permission_redirect_url = '/'
 
     def get_active_col_keys(self):
         cols_param = self.request.GET.get('cols', '').strip()
@@ -675,7 +665,7 @@ class ProductUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView)
         messages.success(self.request, f'Producto "{form.instance.name}" actualizado exitosamente.')
         return super().form_valid(form)
 
-class ProductDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+class ProductDeleteView(SuccessUrlPreservePageMixin, ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
     model = Product
     template_name = 'billing/product_confirm_delete.html'
     success_url = reverse_lazy('billing:product_list')
@@ -683,12 +673,10 @@ class ProductDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequ
     permission_required = 'billing.delete_product'
     permission_redirect_url = '/products/'
 
-class ProductDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
+class ProductDetailView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, DetailView):
     model = Product;
     template_name = 'billing/product_detail.html';
     context_object_name = 'product'
-    permission_required = 'billing.view_product'
-    permission_redirect_url = '/'
 
 @login_required
 def product_price(request, pk):
@@ -735,15 +723,13 @@ def supplier_create_ajax(request):
 
 
 # === CUSTOMER (CBV) ===
-class CustomerListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class CustomerListView(GracefulPaginationMixin, ExportMixin, LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     model = Customer
     template_name = 'billing/customer_list.html'
     context_object_name = 'items'
     paginate_by = 3
     export_filename = 'clientes'
     ALL_COLUMNS = CUSTOMER_ALL_COLUMNS
-    permission_required = 'billing.view_customer'
-    permission_redirect_url = '/'
 
     def get_active_col_keys(self):
         cols_param = self.request.GET.get('cols', '').strip()
@@ -806,7 +792,7 @@ class CustomerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView
     success_url = reverse_lazy('billing:customer_list')
     permission_required = 'billing.change_customer'
     permission_redirect_url = '/customers/'
-class CustomerDeleteView(LoginRequiredMixin, StaffRequiredMixin, PermissionRequiredMixin, DeleteView):
+class CustomerDeleteView(SuccessUrlPreservePageMixin, LoginRequiredMixin, StaffRequiredMixin, PermissionRequiredMixin, DeleteView):
     model = Customer;
     template_name = 'billing/customer_confirm_delete.html';
     success_url = reverse_lazy('billing:customer_list')
@@ -814,12 +800,10 @@ class CustomerDeleteView(LoginRequiredMixin, StaffRequiredMixin, PermissionRequi
     permission_required = 'billing.delete_customer'
     permission_redirect_url = '/customers/'
 
-class CustomerDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
+class CustomerDetailView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, DetailView):
     model = Customer
     template_name = 'billing/customer_detail.html'
     context_object_name = 'customer'
-    permission_required = 'billing.view_customer'
-    permission_redirect_url = '/'
 
 
 # === CONFIGURACIÓN DEL SISTEMA (solo Administrador) ===
@@ -838,15 +822,13 @@ class ConfiguracionUpdateView(AdminOnlyMixin, UpdateView):
 
 
 # === INVOICE (CBV) ===
-class InvoiceListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class InvoiceListView(GracefulPaginationMixin, ExportMixin, LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     model = Invoice
     template_name = 'billing/invoice_list.html'
     context_object_name = 'items'
     paginate_by = 3
     export_filename = 'facturas'
     ALL_COLUMNS = INVOICE_ALL_COLUMNS
-    permission_required = 'billing.view_invoice'
-    permission_redirect_url = '/'
 
     def get_active_col_keys(self):
         cols_param = self.request.GET.get('cols', '').strip()
@@ -1003,7 +985,7 @@ def invoice_create(request):
     })
 
 
-class InvoiceDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+class InvoiceDeleteView(SuccessUrlPreservePageMixin, ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
     model = Invoice
     template_name = 'billing/invoice_confirm_delete.html'
     success_url = reverse_lazy('billing:invoice_list')
@@ -1013,7 +995,7 @@ class InvoiceDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequ
 
 
 @login_required
-@permission_required_with_message('billing.view_invoice', redirect_url='/invoices/')
+@any_crud_permission_required('billing', 'invoice', redirect_url='/invoices/')
 def invoice_detail(request, pk):
     invoice = get_object_or_404(
         Invoice.objects.select_related('customer').prefetch_related('details__product'),
@@ -1026,525 +1008,11 @@ def invoice_detail(request, pk):
 
 
 @login_required
-@permission_required_with_message('billing.view_invoice', redirect_url='/invoices/')
+@permission_required_with_message('billing.imprimir_factura', redirect_url='/invoices/')
 def invoice_pdf_view(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     pdf_bytes = generar_pdf_factura(invoice)
     return HttpResponse(pdf_bytes, content_type='application/pdf')
-
-
-@login_required
-@permission_required_with_message('billing.add_invoice', redirect_url='/invoices/')
-def invoice_paypal_create_order(request, pk):
-    """
-    Endpoint AJAX: el botón de PayPal (JS) lo llama para pedir un
-    order_id ANTES de abrir la ventana de checkout. Solo aplica a
-    facturas de contado que eligieron PayPal y que todavía no están
-    pagadas (evita crear una orden nueva sobre una factura ya cerrada).
-    """
-    invoice = get_object_or_404(Invoice, pk=pk)
-    if invoice.metodo_pago != 'PAYPAL' or invoice.estado == 'PAGADA':
-        return JsonResponse(
-            {'error': 'Esta factura no admite pago con PayPal en este momento.'}, status=400
-        )
-    try:
-        order = create_paypal_order(
-            invoice.total,
-            description=f'Factura #{invoice.id} - Sistema de Ventas'
-        )
-    except PayPalError as e:
-        return JsonResponse({'error': str(e)}, status=502)
-
-    invoice.paypal_order_id = order['id']
-    invoice.paypal_status = 'CREATED'
-    invoice.save(update_fields=['paypal_order_id', 'paypal_status'])
-    return JsonResponse({'id': order['id']})
-
-
-@login_required
-@permission_required_with_message('billing.add_invoice', redirect_url='/invoices/')
-def invoice_paypal_capture_order(request, pk):
-    """
-    Endpoint AJAX: el botón de PayPal lo llama justo después de que el
-    cliente aprobó el pago en su ventana. Aquí se confirma el cobro real
-    y recién aquí se marca la factura como PAGADA.
-    """
-    invoice = get_object_or_404(Invoice, pk=pk)
-    if not invoice.paypal_order_id:
-        return JsonResponse({'error': 'Esta factura no tiene una orden de PayPal creada.'}, status=400)
-
-    try:
-        capture = capture_paypal_order(invoice.paypal_order_id)
-    except PayPalError as e:
-        return JsonResponse({'error': str(e)}, status=502)
-
-    data = extract_capture_data(capture)
-    invoice.paypal_capture_id = data['capture_id']
-    invoice.paypal_status = data['status']
-    invoice.paypal_payer_email = data['payer_email']
-
-    if data['status'] != 'COMPLETED':
-        invoice.save()
-        return JsonResponse(
-            {'error': f'PayPal no completó el pago (estado: {data["status"]}).'}, status=400
-        )
-
-    invoice.estado = 'PAGADA'
-    invoice.saldo = 0
-    invoice.save()
-
-    pdf_bytes = generar_pdf_factura(invoice)
-    enviado = send_invoice_email(invoice, pdf_bytes)
-    if enviado:
-        invoice.enviado_email = True
-        invoice.fecha_envio_email = timezone.now()
-        invoice.save(update_fields=['enviado_email', 'fecha_envio_email'])
-
-    return JsonResponse({'status': 'COMPLETED'})
-
-
-class SupplierDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, StaffRequiredMixin, PermissionRequiredMixin, DeleteView):
-    model = Supplier
-    template_name = 'billing/supplier_confirm_delete.html'
-    success_url = reverse_lazy('billing:supplier_list')
-    staff_redirect_url = '/suppliers/'
-    protected_message = 'No se puede eliminar el proveedor porque tiene productos asociados.'
-    permission_required = 'billing.delete_supplier'
-    permission_redirect_url = '/suppliers/'
-    
-class SupplierDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
-    model = Supplier
-    template_name = 'billing/supplier_detail.html'
-    context_object_name = 'supplier'
-    permission_required = 'billing.view_supplier'
-    permission_redirect_url = '/'
-
-# === PRODUCT (CBV) ===
-class ProductListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
-    model = Product
-    template_name = 'billing/product_list.html'
-    context_object_name = 'items'
-    paginate_by = 3
-    export_filename = 'productos'
-    ALL_COLUMNS = PRODUCT_ALL_COLUMNS
-    permission_required = 'billing.view_product'
-    permission_redirect_url = '/'
-
-    def get_active_col_keys(self):
-        cols_param = self.request.GET.get('cols', '').strip()
-        if cols_param:
-            all_keys = {c['key'] for c in self.ALL_COLUMNS}
-            valid = [k.strip() for k in cols_param.split(',') if k.strip() in all_keys]
-            if valid:
-                return valid
-        return [c['key'] for c in self.ALL_COLUMNS if c.get('default', True)]
-
-    def get_dynamic_export_fields(self):
-        active = set(self.get_active_col_keys())
-        return [
-            col['export']
-            for col in self.ALL_COLUMNS
-            if col['key'] in active and col.get('export') is not None
-        ]
-
-    def get_queryset(self):
-        qs = (
-            Product.objects
-            .select_related('brand', 'group')
-            .prefetch_related('suppliers')
-            .order_by('name')
-        )
-        form = ProductSearchForm(self.request.GET)
-        if form.is_valid():
-            if form.cleaned_data.get('name'):
-                qs = qs.filter(name__icontains=form.cleaned_data['name'])
-            if form.cleaned_data.get('brand'):
-                qs = qs.filter(brand=form.cleaned_data['brand'])
-            if form.cleaned_data.get('group'):
-                qs = qs.filter(group=form.cleaned_data['group'])
-            if form.cleaned_data.get('supplier'):
-                qs = qs.filter(suppliers=form.cleaned_data['supplier'])
-            if form.cleaned_data.get('price_min') is not None:
-                qs = qs.filter(unit_price__gte=form.cleaned_data['price_min'])
-            if form.cleaned_data.get('price_max') is not None:
-                qs = qs.filter(unit_price__lte=form.cleaned_data['price_max'])
-            if form.cleaned_data.get('stock_min') is not None:
-                qs = qs.filter(stock__gte=form.cleaned_data['stock_min'])
-            if form.cleaned_data.get('stock_max') is not None:
-                qs = qs.filter(stock__lte=form.cleaned_data['stock_max'])
-        return qs
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['search_form'] = ProductSearchForm(self.request.GET)
-        ctx['all_columns'] = self.ALL_COLUMNS
-        ctx['all_col_keys_json'] = json.dumps([c['key'] for c in self.ALL_COLUMNS])
-        ctx['default_col_keys_json'] = json.dumps(
-            [c['key'] for c in self.ALL_COLUMNS if c.get('default', True)]
-        )
-        return ctx
-class ProductCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
-    model = Product
-    form_class = ProductForm
-    template_name = 'billing/product_form.html'
-    success_url = reverse_lazy('billing:product_list')
-    permission_required = 'billing.add_product'
-    permission_redirect_url = '/products/'
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['is_edit'] = False
-        ctx['page_title'] = 'Nuevo Producto'
-        return ctx
-
-    def form_valid(self, form):
-        messages.success(self.request, f'Producto "{form.instance.name}" creado exitosamente.')
-        return super().form_valid(form)
-
-class ProductUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
-    model = Product
-    form_class = ProductForm
-    template_name = 'billing/product_form.html'
-    success_url = reverse_lazy('billing:product_list')
-    permission_required = 'billing.change_product'
-    permission_redirect_url = '/products/'
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['is_edit'] = True
-        ctx['page_title'] = f'Editar: {self.object.name}'
-        return ctx
-
-    def form_valid(self, form):
-        messages.success(self.request, f'Producto "{form.instance.name}" actualizado exitosamente.')
-        return super().form_valid(form)
-
-class ProductDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
-    model = Product
-    template_name = 'billing/product_confirm_delete.html'
-    success_url = reverse_lazy('billing:product_list')
-    protected_message = 'No se puede eliminar el producto porque está en una o más facturas.'
-    permission_required = 'billing.delete_product'
-    permission_redirect_url = '/products/'
-
-class ProductDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
-    model = Product;
-    template_name = 'billing/product_detail.html';
-    context_object_name = 'product'
-    permission_required = 'billing.view_product'
-    permission_redirect_url = '/'
-
-@login_required
-def product_price(request, pk):
-    """Endpoint JSON de solo lectura: precio actual de un producto (autocompletado en Factura/Compra)."""
-    product = get_object_or_404(Product, pk=pk)
-    return JsonResponse({'precio': str(product.unit_price)})
-
-
-@login_required
-def customer_create_ajax(request):
-    """
-    Alta rápida de Cliente desde el modal de "Nueva Factura", para no perder
-    las líneas ya cargadas en el formulario principal. No reemplaza a
-    CustomerCreateView (el formulario completo sigue existiendo tal cual).
-    """
-    if request.method == 'POST':
-        form = CustomerForm(request.POST)
-        if form.is_valid():
-            customer = form.save()
-            return JsonResponse({'ok': True, 'id': customer.id, 'text': str(customer)})
-        return JsonResponse({'ok': False, 'errors': form.errors.get_json_data()}, status=400)
-
-    form = CustomerForm()
-    return render(request, 'billing/_customer_form_modal.html', {'form': form})
-
-
-@login_required
-def supplier_create_ajax(request):
-    """
-    Alta rápida de Proveedor desde el modal de "Nueva Compra" (purchasing),
-    para no perder las líneas ya cargadas. Vive en billing porque Supplier
-    pertenece a esta app. No reemplaza a SupplierCreateView.
-    """
-    if request.method == 'POST':
-        form = SupplierForm(request.POST)
-        if form.is_valid():
-            supplier = form.save()
-            return JsonResponse({'ok': True, 'id': supplier.id, 'text': str(supplier)})
-        return JsonResponse({'ok': False, 'errors': form.errors.get_json_data()}, status=400)
-
-    form = SupplierForm()
-    return render(request, 'billing/_supplier_form_modal.html', {'form': form})
-
-
-
-# === CUSTOMER (CBV) ===
-class CustomerListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
-    model = Customer
-    template_name = 'billing/customer_list.html'
-    context_object_name = 'items'
-    paginate_by = 3
-    export_filename = 'clientes'
-    ALL_COLUMNS = CUSTOMER_ALL_COLUMNS
-    permission_required = 'billing.view_customer'
-    permission_redirect_url = '/'
-
-    def get_active_col_keys(self):
-        cols_param = self.request.GET.get('cols', '').strip()
-        if cols_param:
-            all_keys = {c['key'] for c in self.ALL_COLUMNS}
-            valid = [k.strip() for k in cols_param.split(',') if k.strip() in all_keys]
-            if valid:
-                return valid
-        return [c['key'] for c in self.ALL_COLUMNS if c.get('default', True)]
-
-    def get_dynamic_export_fields(self):
-        active = set(self.get_active_col_keys())
-        return [
-            col['export']
-            for col in self.ALL_COLUMNS
-            if col['key'] in active and col.get('export') is not None
-        ]
-
-    @property
-    def export_fields(self):
-        return self.get_dynamic_export_fields()
-
-    def get_queryset(self):
-        qs = Customer.objects.all()
-        form = CustomerSearchForm(self.request.GET)
-        if form.is_valid():
-            if form.cleaned_data.get('dni'):
-                qs = qs.filter(dni__icontains=form.cleaned_data['dni'])
-            if form.cleaned_data.get('last_name'):
-                qs = qs.filter(last_name__icontains=form.cleaned_data['last_name'])
-            if form.cleaned_data.get('first_name'):
-                qs = qs.filter(first_name__icontains=form.cleaned_data['first_name'])
-            if form.cleaned_data.get('email'):
-                qs = qs.filter(email__icontains=form.cleaned_data['email'])
-            if form.cleaned_data.get('phone'):
-                qs = qs.filter(phone__icontains=form.cleaned_data['phone'])
-        return qs
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['search_form'] = CustomerSearchForm(self.request.GET)
-        ctx['all_columns'] = self.ALL_COLUMNS
-        ctx['all_col_keys_json'] = json.dumps([c['key'] for c in self.ALL_COLUMNS])
-        ctx['default_col_keys_json'] = json.dumps(
-            [c['key'] for c in self.ALL_COLUMNS if c.get('default', True)]
-        )
-        return ctx
-
-class CustomerCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
-    model = Customer;
-    form_class = CustomerForm;
-    template_name = 'billing/customer_form.html';
-    success_url = reverse_lazy('billing:customer_list')
-    permission_required = 'billing.add_customer'
-    permission_redirect_url = '/customers/'
-class CustomerUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
-    model = Customer;
-    form_class = CustomerForm;
-    template_name = 'billing/customer_form.html';
-    success_url = reverse_lazy('billing:customer_list')
-    permission_required = 'billing.change_customer'
-    permission_redirect_url = '/customers/'
-class CustomerDeleteView(LoginRequiredMixin, StaffRequiredMixin, PermissionRequiredMixin, DeleteView):
-    model = Customer;
-    template_name = 'billing/customer_confirm_delete.html';
-    success_url = reverse_lazy('billing:customer_list')
-    staff_redirect_url = '/customers/'
-    permission_required = 'billing.delete_customer'
-    permission_redirect_url = '/customers/'
-
-class CustomerDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
-    model = Customer
-    template_name = 'billing/customer_detail.html'
-    context_object_name = 'customer'
-    permission_required = 'billing.view_customer'
-    permission_redirect_url = '/'
-
-
-# === CONFIGURACIÓN DEL SISTEMA (solo Administrador) ===
-class ConfiguracionUpdateView(AdminOnlyMixin, UpdateView):
-    model = ConfiguracionSistema
-    form_class = ConfiguracionForm
-    template_name = 'billing/configuracion_form.html'
-    success_url = reverse_lazy('billing:configuracion')
-
-    def get_object(self, queryset=None):
-        return ConfiguracionSistema.get_activa()
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Configuración actualizada correctamente.')
-        return super().form_valid(form)
-
-
-# === INVOICE (CBV) ===
-class InvoiceListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
-    model = Invoice
-    template_name = 'billing/invoice_list.html'
-    context_object_name = 'items'
-    paginate_by = 3
-    export_filename = 'facturas'
-    ALL_COLUMNS = INVOICE_ALL_COLUMNS
-    permission_required = 'billing.view_invoice'
-    permission_redirect_url = '/'
-
-    def get_active_col_keys(self):
-        cols_param = self.request.GET.get('cols', '').strip()
-        if cols_param:
-            all_keys = {c['key'] for c in self.ALL_COLUMNS}
-            valid = [k.strip() for k in cols_param.split(',') if k.strip() in all_keys]
-            if valid:
-                return valid
-        return [c['key'] for c in self.ALL_COLUMNS if c.get('default', True)]
-
-    def get_dynamic_export_fields(self):
-        active = set(self.get_active_col_keys())
-        return [
-            col['export']
-            for col in self.ALL_COLUMNS
-            if col['key'] in active and col.get('export') is not None
-        ]
-
-    @property
-    def export_fields(self):
-        return self.get_dynamic_export_fields()
-
-    def get_queryset(self):
-        qs = Invoice.objects.select_related('customer').order_by('-invoice_date')
-        form = InvoiceSearchForm(self.request.GET)
-        if form.is_valid():
-            if form.cleaned_data.get('customer'):
-                q = form.cleaned_data['customer']
-                qs = qs.filter(
-                    Q(customer__first_name__icontains=q) |
-                    Q(customer__last_name__icontains=q) |
-                    Q(customer__dni__icontains=q)
-                )
-            if form.cleaned_data.get('date_from'):
-                qs = qs.filter(invoice_date__date__gte=form.cleaned_data['date_from'])
-            if form.cleaned_data.get('date_to'):
-                qs = qs.filter(invoice_date__date__lte=form.cleaned_data['date_to'])
-            if form.cleaned_data.get('total_min') is not None:
-                qs = qs.filter(total__gte=form.cleaned_data['total_min'])
-            if form.cleaned_data.get('total_max') is not None:
-                qs = qs.filter(total__lte=form.cleaned_data['total_max'])
-        return qs
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['search_form'] = InvoiceSearchForm(self.request.GET)
-        ctx['all_columns'] = self.ALL_COLUMNS
-        ctx['all_col_keys_json'] = json.dumps([c['key'] for c in self.ALL_COLUMNS])
-        ctx['default_col_keys_json'] = json.dumps(
-            [c['key'] for c in self.ALL_COLUMNS if c.get('default', True)]
-        )
-        return ctx
-@login_required
-@permission_required_with_message('billing.add_invoice', redirect_url='/invoices/')
-def invoice_create(request):
-    config = ConfiguracionSistema.get_activa()
-    if request.method == 'POST':
-        form = InvoiceForm(request.POST)
-        formset = InvoiceDetailFormSet(request.POST)
-        if form.is_valid() and formset.is_valid():
-            try:
-                with transaction.atomic():
-                    invoice = form.save()
-                    formset.instance = invoice
-                    formset.save()
-
-                    # Revalida el stock DENTRO de la transacción, con
-                    # select_for_update(): cierra la ventana de condición de
-                    # carrera entre dos facturas simultáneas que pasaron la
-                    # validación del formset (sin locking) antes de que
-                    # ninguna hubiera descontado stock todavía. Si algo no
-                    # alcanza, se hace rollback completo (ni factura ni stock
-                    # quedan modificados a medias).
-                    errores_stock = []
-                    for d in invoice.details.all():
-                        product = Product.objects.select_for_update().get(pk=d.product_id)
-                        if d.quantity > product.stock:
-                            errores_stock.append(
-                                f'"{product.name}": pediste {d.quantity}, pero solo hay {product.stock} en stock.'
-                            )
-                        else:
-                            product.stock = F('stock') - d.quantity
-                            product.save(update_fields=['stock'])
-                    if errores_stock:
-                        raise ValidationError(errores_stock)
-
-                    subtotal = sum(d.subtotal for d in invoice.details.all())
-                    invoice.subtotal = subtotal
-                    invoice.tax = subtotal * config.iva_porcentaje / Decimal('100')
-                    invoice.total = invoice.subtotal + invoice.tax
-                    invoice.saldo = invoice.total
-
-                    if invoice.tipo_pago == 'CREDITO':
-                        invoice.estado = 'PENDIENTE'
-                        invoice.save()
-                        from creditos_ventas.services import generar_cuotas
-                        generar_cuotas(invoice, form.cleaned_data['num_cuotas'])
-                    elif invoice.metodo_pago == 'PAYPAL':
-                        # CONTADO + PayPal: todavía NO está pagada. Falta
-                        # que el cliente confirme el pago en la ventana de
-                        # PayPal, eso pasa en 2 pasos aparte (ver
-                        # invoice_paypal_create_order / _capture_order más
-                        # abajo). Por eso la dejamos PENDIENTE por ahora.
-                        invoice.estado = 'PENDIENTE'
-                        invoice.save()
-                    else:
-                        # CONTADO en efectivo/transferencia: no hay pasarela
-                        # de pago real, se confía en el cajero y el pago
-                        # queda confirmado de inmediato (igual que antes).
-                        invoice.saldo = 0
-                        invoice.estado = 'PAGADA'
-                        invoice.save()
-            except ValidationError as e:
-                for msg in e.messages:
-                    messages.error(request, msg)
-                return redirect('billing:invoice_create')
-
-            if invoice.tipo_pago == 'CONTADO' and invoice.metodo_pago == 'PAYPAL':
-                # Manda al cliente a la pantalla de detalle, donde va a
-                # aparecer el botón de PayPal para terminar de pagar.
-                messages.info(
-                    request,
-                    f'Factura #{invoice.id} creada por ${invoice.total}. '
-                    f'Completa el pago con PayPal para confirmarla.'
-                )
-                return redirect('billing:invoice_detail', pk=invoice.pk)
-
-            # Correo con la factura en PDF al cliente (si tiene correo registrado)
-            pdf_bytes = generar_pdf_factura(invoice)
-            enviado = send_invoice_email(invoice, pdf_bytes)
-            if enviado:
-                invoice.enviado_email = True
-                invoice.fecha_envio_email = timezone.now()
-                invoice.save(update_fields=['enviado_email', 'fecha_envio_email'])
-
-            if enviado:
-                messages.success(
-                    request,
-                    f'Factura #{invoice.id} creada! Total: ${invoice.total}. '
-                    f'Se envió por correo a {invoice.customer.email}.'
-                )
-            else:
-                messages.warning(
-                    request,
-                    f'Factura #{invoice.id} creada! Total: ${invoice.total}. '
-                    f'El cliente no tiene correo registrado, no se envió factura por email.'
-                )
-            return redirect('billing:invoice_list')
-    else:
-        form = InvoiceForm()
-        formset = InvoiceDetailFormSet()
-    return render(request, 'billing/invoice_form.html', {
-        'form': form, 'formset': formset, 'title': 'Nueva Factura', 'config': config,
-    })
 
 
 @login_required

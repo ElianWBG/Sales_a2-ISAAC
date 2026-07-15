@@ -11,9 +11,10 @@
         <p class="mb-4">¿Estás seguro de eliminar la <strong>{{ object }}</strong>? Esta acción no se puede deshacer y se borrarán también sus líneas de detalle.</p>
         <form method="post">
           {% csrf_token %}
+          {% if request.GET.page %}<input type="hidden" name="page" value="{{ request.GET.page }}">{% endif %}
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-danger px-4"><i class="bi bi-trash"></i> Sí, eliminar</button>
-            <a href="{% url 'purchasing:purchase_list' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
+            <a href="{% url 'purchasing:purchase_list' %}{% if request.GET.page %}?page={{ request.GET.page }}{% endif %}" class="btn btn-outline-secondary px-4">Cancelar</a>
           </div>
         </form>
       </div>

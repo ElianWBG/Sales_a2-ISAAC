@@ -52,7 +52,13 @@ class PagoCuotaVentaForm(forms.ModelForm):
                 raise forms.ValidationError('La fecha del pago no puede ser futura.')
             if self.cuota is not None:
                 fecha_factura = self.cuota.factura.invoice_date
-                if hasattr(fecha_factura, 'date'):
+                # .date() crudo trunca en UTC, no en hora local (Ecuador,
+                # UTC-5): sin convertir, una factura creada de noche queda
+                # con fecha del día siguiente y bloquea pagos válidos del
+                # mismo día.
+                if hasattr(fecha_factura, 'tzinfo') and fecha_factura.tzinfo is not None:
+                    fecha_factura = timezone.localtime(fecha_factura).date()
+                elif hasattr(fecha_factura, 'date'):
                     fecha_factura = fecha_factura.date()
                 if fecha < fecha_factura:
                     raise forms.ValidationError(

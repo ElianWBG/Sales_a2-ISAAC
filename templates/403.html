@@ -1,0 +1,9 @@
+{% extends 'error_base.html' %}
+{% block title %}Acceso denegado{% endblock %}
+{% block error_icon %}<i class="bi bi-lock-fill text-danger" style="font-size: 4rem;"></i>{% endblock %}
+{% block error_code %}403{% endblock %}
+{% block error_title %}Acceso denegado{% endblock %}
+{% block error_message %}No tienes permiso para realizar esta acción.{% endblock %}
+{% block error_extra %}
+<p class="text-muted mb-4" style="max-width: 480px;">Si crees que esto es un error, contacta a un Administrador del sistema.</p>
+{% endblock %}

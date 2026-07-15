@@ -12,7 +12,8 @@ from django.utils import timezone
 from django.views.generic import ListView, DeleteView
 
 from purchasing.models import Purchase
-from shared.mixins import ProtectedDeleteMixin
+from shared.mixins import ProtectedDeleteMixin, PermissionRequiredMixin, AnyCrudPermissionRequiredMixin
+from shared.decorators import permission_required_with_message, any_crud_permission_required
 
 from .models import CuotaCompra, PagoCuotaCompra
 from .forms import PagoCuotaCompraForm
@@ -22,7 +23,7 @@ from .plan_pagos_pdf import generar_pdf_plan_pagos_compra
 
 # === CUOTAS ===
 
-class CuotaListView(LoginRequiredMixin, ListView):
+class CuotaListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     """Cuotas de UNA compra específica."""
     model = CuotaCompra
     template_name = 'creditos_compras/cuota_list.html'
@@ -38,7 +39,7 @@ class CuotaListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class CuotaPendientesListView(LoginRequiredMixin, ListView):
+class CuotaPendientesListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     """Todas las cuotas PENDIENTES del sistema, sin importar la compra."""
     model = CuotaCompra
     template_name = 'creditos_compras/cuota_pendientes_list.html'
@@ -58,7 +59,7 @@ class CuotaPendientesListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class CuotaDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, DeleteView):
+class CuotaDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
     """
     Elimina una cuota. PagoCuotaCompra.cuota usa on_delete=PROTECT, así que
     si la cuota ya tiene pagos registrados, ProtectedDeleteMixin lo bloquea
@@ -68,6 +69,8 @@ class CuotaDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, DeleteView):
     template_name = 'creditos_compras/cuota_confirm_delete.html'
     protected_message = 'No se puede eliminar la cuota porque tiene pagos registrados.'
     success_message = 'Cuota eliminada correctamente.'
+    permission_required = 'creditos_compras.delete_cuotacompra'
+    permission_redirect_url = '/'
 
     def get_success_url(self):
         return reverse('creditos_compras:cuotas_compra', kwargs={'pk': self.object.compra_id})
@@ -76,6 +79,7 @@ class CuotaDeleteView(ProtectedDeleteMixin, LoginRequiredMixin, DeleteView):
 # === PAGOS ===
 
 @login_required
+@permission_required_with_message('creditos_compras.add_pagocuotacompra', redirect_url='/')
 def registrar_pago(request, cuota_pk):
     """Registra un pago sobre una cuota y recalcula cuota + compra."""
     cuota = get_object_or_404(CuotaCompra, pk=cuota_pk)
@@ -105,6 +109,7 @@ def registrar_pago(request, cuota_pk):
 
 
 @login_required
+@permission_required_with_message('creditos_compras.add_pagocuotacompra', redirect_url='/')
 def pagar_cuotas_lote(request, purchase_pk):
     """
     Paga el saldo COMPLETO de varias cuotas de una misma compra en un
@@ -129,7 +134,14 @@ def pagar_cuotas_lote(request, purchase_pk):
         messages.error(request, 'La fecha de pago no es válida.')
         return redirect('creditos_compras:cuotas_compra', pk=purchase.pk)
 
-    fecha_compra = purchase.purchase_date.date() if hasattr(purchase.purchase_date, 'date') else purchase.purchase_date
+    # .date() crudo trunca en UTC, no en hora local (ver mismo fix en
+    # creditos_compras/services.py y forms.py).
+    if hasattr(purchase.purchase_date, 'tzinfo') and purchase.purchase_date.tzinfo is not None:
+        fecha_compra = timezone.localtime(purchase.purchase_date).date()
+    elif hasattr(purchase.purchase_date, 'date'):
+        fecha_compra = purchase.purchase_date.date()
+    else:
+        fecha_compra = purchase.purchase_date
     if fecha > timezone.localdate():
         messages.error(request, 'La fecha de pago no puede ser futura.')
         return redirect('creditos_compras:cuotas_compra', pk=purchase.pk)
@@ -172,7 +184,7 @@ def pagar_cuotas_lote(request, purchase_pk):
     return redirect('creditos_compras:cuotas_compra', pk=purchase.pk)
 
 
-class HistorialPagosCuotaView(LoginRequiredMixin, ListView):
+class HistorialPagosCuotaView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     """Historial de pagos de UNA cuota."""
     model = PagoCuotaCompra
     template_name = 'creditos_compras/historial_pagos.html'
@@ -189,7 +201,7 @@ class HistorialPagosCuotaView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class HistorialPagosCompraView(LoginRequiredMixin, ListView):
+class HistorialPagosCompraView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     """Historial de pagos de TODAS las cuotas de una compra."""
     model = PagoCuotaCompra
     template_name = 'creditos_compras/historial_pagos.html'
@@ -214,6 +226,7 @@ class HistorialPagosCompraView(LoginRequiredMixin, ListView):
 # === PDF ===
 
 @login_required
+@permission_required_with_message('creditos_compras.imprimir_plan_pagos', redirect_url='/')
 def plan_pagos_pdf_view(request, purchase_pk):
     """Genera el PDF del Plan de Pagos / Estado de Cuenta de una compra a crédito."""
     purchase = get_object_or_404(Purchase, pk=purchase_pk)

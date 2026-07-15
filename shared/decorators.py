@@ -4,6 +4,8 @@ from django.contrib import messages
 from django.shortcuts import redirect
 from django.utils import timezone
 
+from shared.mixins import has_any_crud_permission
+
 # Configurar logger para auditoría
 # Los mensajes se guardan en la consola y pueden redirigirse a archivo
 logger = logging.getLogger('audit')
@@ -94,6 +96,33 @@ def permission_required_with_message(perm, redirect_url='/', error_message=None)
                 messages.error(
                     request,
                     error_message or 'No tienes permiso para realizar esta acción.'
+                )
+                return redirect(redirect_url)
+            return view_func(request, *args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def any_crud_permission_required(app_label, model_name, redirect_url='/', error_message=None):
+    """
+    Equivalente FBV de shared.mixins.AnyCrudPermissionRequiredMixin: exige
+    que el usuario tenga AL MENOS UNO de los 4 permisos nativos
+    (view/add/change/delete) sobre `app_label.model_name` -- lógica OR,
+    no el AND que impondría encadenar varios @permission_required_with_message.
+
+    Uso:
+        @login_required
+        @any_crud_permission_required('billing', 'invoice', redirect_url='/invoices/')
+        def invoice_detail(request, pk):
+            ...
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            if not has_any_crud_permission(request.user, app_label, model_name):
+                messages.error(
+                    request,
+                    error_message or 'No tienes permiso para acceder a esta sección.'
                 )
                 return redirect(redirect_url)
             return view_func(request, *args, **kwargs)

@@ -45,7 +45,13 @@ class PagoCuotaCompraForm(forms.ModelForm):
                 raise forms.ValidationError('La fecha del pago no puede ser futura.')
             if self.cuota is not None:
                 fecha_compra = self.cuota.compra.purchase_date
-                if hasattr(fecha_compra, 'date'):
+                # .date() crudo trunca en UTC, no en hora local (Ecuador,
+                # UTC-5): sin convertir, una compra creada de noche queda
+                # con fecha del día siguiente y bloquea pagos válidos del
+                # mismo día.
+                if hasattr(fecha_compra, 'tzinfo') and fecha_compra.tzinfo is not None:
+                    fecha_compra = timezone.localtime(fecha_compra).date()
+                elif hasattr(fecha_compra, 'date'):
                     fecha_compra = fecha_compra.date()
                 if fecha < fecha_compra:
                     raise forms.ValidationError(

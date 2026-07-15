@@ -53,10 +53,14 @@
 
     <div class="d-flex gap-2 border-top pt-3">
       <a href="{% url 'purchasing:purchase_list' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+      {% if perms.purchasing.imprimir_orden_compra %}
       <a href="{% url 'purchasing:purchase_pdf' purchase.pk %}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-printer"></i> Imprimir Compra</a>
+      {% endif %}
       {% if purchase.tipo_pago == 'CREDITO' %}
       <a href="{% url 'creditos_compras:cuotas_compra' purchase.pk %}" class="btn btn-outline-dark"><i class="bi bi-calendar-check"></i> Ver Cuotas</a>
+      {% if perms.creditos_compras.imprimir_plan_pagos %}
       <a href="{% url 'creditos_compras:plan_pagos_pdf' purchase.pk %}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-printer"></i> Imprimir Plan de Pagos</a>
+      {% endif %}
       {% endif %}
       {% if perms.purchasing.delete_purchase %}
       <a href="{% url 'purchasing:purchase_delete' purchase.pk %}" class="btn btn-danger"><i class="bi bi-trash"></i> Eliminar</a>

@@ -6,7 +6,8 @@ y pagos AL MOMENTO de generarlo, no un documento fijo.
 """
 
 import io
-from datetime import datetime
+
+from django.utils import timezone
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -102,7 +103,7 @@ def generar_pdf_plan_pagos(invoice):
     elements.append(Spacer(1, 1 * cm))
 
     elements.append(Paragraph(
-        f'Documento generado el {datetime.now().strftime("%d/%m/%Y a las %H:%M")}. '
+        f'Documento generado el {timezone.localtime().strftime("%d/%m/%Y a las %H:%M")}. '
         f'Refleja el estado de la factura al momento de imprimirlo, a diferencia de la '
         f'Factura (documento fijo).',
         styles['Normal'],

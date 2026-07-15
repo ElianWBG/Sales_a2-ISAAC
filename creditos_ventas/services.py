@@ -3,6 +3,7 @@ from datetime import date
 import calendar
 from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 from .models import CuotaVenta
 
 
@@ -21,7 +22,16 @@ def generar_cuotas(invoice, num_cuotas):
     total = invoice.total
     valor_base = (total / num_cuotas).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     valor_ultima = total - (valor_base * (num_cuotas - 1))
-    fecha_base = invoice.invoice_date.date() if hasattr(invoice.invoice_date, 'date') else invoice.invoice_date
+    # .date() crudo trunca en UTC, no en la hora local del negocio (Ecuador,
+    # UTC-5): una factura creada a las 20:00 hora local puede quedar
+    # guardada como 01:00 UTC del día SIGUIENTE, corriendo un día todos los
+    # vencimientos de las cuotas si no se convierte antes de truncar.
+    if hasattr(invoice.invoice_date, 'tzinfo') and invoice.invoice_date.tzinfo is not None:
+        fecha_base = timezone.localtime(invoice.invoice_date).date()
+    elif hasattr(invoice.invoice_date, 'date'):
+        fecha_base = invoice.invoice_date.date()
+    else:
+        fecha_base = invoice.invoice_date
 
     cuotas = []
     for i in range(1, num_cuotas + 1):

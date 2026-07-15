@@ -68,10 +68,14 @@
       </tfoot>
     </table>
     <a href="{% url 'billing:invoice_list' %}" class="btn btn-secondary">Volver</a>
+    {% if perms.billing.imprimir_factura %}
     <a href="{% url 'billing:invoice_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">Imprimir Factura</a>
+    {% endif %}
     {% if invoice.tipo_pago == 'CREDITO' %}
     <a href="{% url 'creditos_ventas:cuotas_factura' invoice.pk %}" class="btn btn-outline-dark">Ver Cuotas</a>
+    {% if perms.creditos_ventas.imprimir_plan_pagos %}
     <a href="{% url 'creditos_ventas:plan_pagos_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">Imprimir Plan de Pagos</a>
+    {% endif %}
     {% endif %}
     {% if perms.billing.delete_invoice %}
     <a href="{% url 'billing:invoice_delete' invoice.pk %}" class="btn btn-danger">Eliminar</a>

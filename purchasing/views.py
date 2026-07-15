@@ -13,8 +13,11 @@ from django.db.models import Avg, Sum, Count, F
 
 from billing.mixins import ExportMixin
 from billing.models import Product, ConfiguracionSistema
-from shared.mixins import PermissionRequiredMixin
-from shared.decorators import permission_required_with_message
+from shared.mixins import (
+    PermissionRequiredMixin, redirect_preserving_page, GracefulPaginationMixin,
+    AnyCrudPermissionRequiredMixin,
+)
+from shared.decorators import permission_required_with_message, any_crud_permission_required
 from .models import Purchase, PurchaseDetail
 from .forms import PurchaseForm, PurchaseDetailFormSet, PurchaseSearchForm
 from .purchase_pdf import generar_pdf_compra
@@ -41,15 +44,13 @@ PURCHASE_ALL_COLUMNS = [
 
 
 # === PURCHASE LIST (CBV con export, igual que InvoiceListView) ===
-class PurchaseListView(ExportMixin, LoginRequiredMixin, PermissionRequiredMixin, ListView):
+class PurchaseListView(GracefulPaginationMixin, ExportMixin, LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
     model = Purchase
     template_name = 'purchasing/purchase_list.html'
     context_object_name = 'items'
     paginate_by = 3
     export_filename = 'compras'
     ALL_COLUMNS = PURCHASE_ALL_COLUMNS
-    permission_required = 'purchasing.view_purchase'
-    permission_redirect_url = '/'
 
     def get_active_col_keys(self):
         cols_param = self.request.GET.get('cols', '').strip()
@@ -158,7 +159,7 @@ def purchase_create(request):
 
 # === DETAIL (FBV) ===
 @login_required
-@permission_required_with_message('purchasing.view_purchase', redirect_url='/')
+@any_crud_permission_required('purchasing', 'purchase', redirect_url='/')
 def purchase_detail(request, pk):
     """Muestra el detalle completo de una compra."""
     purchase = get_object_or_404(
@@ -170,7 +171,7 @@ def purchase_detail(request, pk):
 
 
 @login_required
-@permission_required_with_message('purchasing.view_purchase', redirect_url='/')
+@permission_required_with_message('purchasing.imprimir_orden_compra', redirect_url='/')
 def purchase_pdf_view(request, pk):
     """Genera el PDF de la compra para imprimir/verla en el navegador."""
     purchase = get_object_or_404(Purchase, pk=pk)
@@ -191,13 +192,13 @@ def purchase_delete(request, pk):
             messages.success(request, f'Compra #{purchase_id} eliminada!')
         except ProtectedError:
             messages.error(request, 'No se puede eliminar la compra porque tiene cuotas de crédito asociadas.')
-        return redirect('purchasing:purchase_list')
+        return redirect_preserving_page(request, 'purchasing:purchase_list')
     return render(request, 'purchasing/purchase_confirm_delete.html', {'object': purchase})
 
 
 # === REPORT (FBV con agregación) ===
 @login_required
-@permission_required_with_message('purchasing.view_purchase', redirect_url='/purchases/')
+@permission_required_with_message('purchasing.view_purchase_report', redirect_url='/purchases/')
 def purchase_report(request):
     """Reporte: costo promedio, total comprado y N° de compras por producto."""
     report = (

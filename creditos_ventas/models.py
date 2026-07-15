@@ -15,6 +15,9 @@ class CuotaVenta(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['factura', 'numero'], name='unique_cuota_numero_por_factura')
         ]
+        permissions = [
+            ('imprimir_plan_pagos', 'Puede imprimir el plan de pagos'),
+        ]
 
     def __str__(self):
         return f'Cuota {self.numero} - Factura #{self.factura_id}'

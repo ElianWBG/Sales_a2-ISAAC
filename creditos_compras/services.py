@@ -3,6 +3,7 @@ from datetime import date
 import calendar
 from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 from .models import CuotaCompra
 
 
@@ -21,7 +22,16 @@ def generar_cuotas(purchase, num_cuotas):
     total = purchase.total
     valor_base = (total / num_cuotas).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     valor_ultima = total - (valor_base * (num_cuotas - 1))
-    fecha_base = purchase.purchase_date.date() if hasattr(purchase.purchase_date, 'date') else purchase.purchase_date
+    # .date() crudo trunca en UTC, no en la hora local del negocio (Ecuador,
+    # UTC-5): una compra creada a las 20:00 hora local puede quedar
+    # guardada como 01:00 UTC del día SIGUIENTE, corriendo un día todos los
+    # vencimientos de las cuotas si no se convierte antes de truncar.
+    if hasattr(purchase.purchase_date, 'tzinfo') and purchase.purchase_date.tzinfo is not None:
+        fecha_base = timezone.localtime(purchase.purchase_date).date()
+    elif hasattr(purchase.purchase_date, 'date'):
+        fecha_base = purchase.purchase_date.date()
+    else:
+        fecha_base = purchase.purchase_date
 
     cuotas = []
     for i in range(1, num_cuotas + 1):

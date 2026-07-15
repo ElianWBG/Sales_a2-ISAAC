@@ -14,6 +14,10 @@ class Brand(models.Model):
         verbose_name = 'Brand'
         verbose_name_plural = 'Brands'
         ordering = ['name']
+        permissions = [
+            ('exportar_pdf_brand', 'Puede exportar Marcas a PDF'),
+            ('exportar_excel_brand', 'Puede exportar Marcas a Excel'),
+        ]
     def __str__(self): return self.name
 
 class ProductGroup(models.Model):
@@ -26,6 +30,10 @@ class ProductGroup(models.Model):
         verbose_name = 'Product Group'
         verbose_name_plural = 'Product Groups'
         ordering = ['name']
+        permissions = [
+            ('exportar_pdf_productgroup', 'Puede exportar Grupos de Productos a PDF'),
+            ('exportar_excel_productgroup', 'Puede exportar Grupos de Productos a Excel'),
+        ]
     def __str__(self): return self.name
 
 class Supplier(models.Model):
@@ -42,6 +50,10 @@ class Supplier(models.Model):
         verbose_name = 'Supplier'
         verbose_name_plural = 'Suppliers'
         ordering = ['name']
+        permissions = [
+            ('exportar_pdf_supplier', 'Puede exportar Proveedores a PDF'),
+            ('exportar_excel_supplier', 'Puede exportar Proveedores a Excel'),
+        ]
     def __str__(self): return self.name
 
 class Product(models.Model):
@@ -61,6 +73,10 @@ class Product(models.Model):
         verbose_name = 'Product'
         verbose_name_plural = 'Products'
         ordering = ['name']
+        permissions = [
+            ('exportar_pdf_product', 'Puede exportar Productos a PDF'),
+            ('exportar_excel_product', 'Puede exportar Productos a Excel'),
+        ]
     def __str__(self): return f'{self.name} ({self.brand.name})'
     @property
     def balance(self):
@@ -80,6 +96,10 @@ class Customer(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     class Meta:
         ordering = ['last_name', 'first_name']
+        permissions = [
+            ('exportar_pdf_customer', 'Puede exportar Clientes a PDF'),
+            ('exportar_excel_customer', 'Puede exportar Clientes a Excel'),
+        ]
     def __str__(self): return f'{self.last_name}, {self.first_name}'
     @property
     def full_name(self): return f'{self.first_name} {self.last_name}'
@@ -154,7 +174,13 @@ class Invoice(models.Model):
     enviado_email = models.BooleanField(default=False, verbose_name='¿Enviada por correo?')
     fecha_envio_email = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de envío por correo')
 
-    class Meta: ordering = ['-invoice_date']
+    class Meta:
+        ordering = ['-invoice_date']
+        permissions = [
+            ('exportar_pdf_invoice', 'Puede exportar Facturas a PDF'),
+            ('exportar_excel_invoice', 'Puede exportar Facturas a Excel'),
+            ('imprimir_factura', 'Puede imprimir el documento de la factura'),
+        ]
     def __str__(self): return f'Invoice #{self.id} - {self.customer}'
 
 class ConfiguracionSistema(models.Model):

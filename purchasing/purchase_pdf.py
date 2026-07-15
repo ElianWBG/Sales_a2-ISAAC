@@ -5,7 +5,8 @@ adaptada a los campos de Purchase/PurchaseDetail.
 """
 
 import io
-from datetime import datetime
+
+from django.utils import timezone
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER
@@ -148,7 +149,7 @@ def generar_pdf_compra(purchase):
             footer_nota_style,
         ))
     elements.append(Paragraph(
-        f'Generado el {datetime.now().strftime("%d/%m/%Y a las %H:%M")}',
+        f'Generado el {timezone.localtime().strftime("%d/%m/%Y a las %H:%M")}',
         footer_gen_style,
     ))
 
