@@ -30,12 +30,12 @@ def send_welcome_email_with_temp_password(user, temp_password):
         f'la primera vez que inicies sesión.\n\n'
         f'Si no esperabas este correo, contacta al administrador del sistema.'
     )
-    send_mail(
+    sent = send_mail(
         subject, message,
         settings.DEFAULT_FROM_EMAIL, [user.email],
-        fail_silently=False,
+        fail_silently=True,
     )
-    return True
+    return bool(sent)
 
 
 def send_invoice_email(invoice, pdf_bytes):
@@ -62,8 +62,7 @@ def send_invoice_email(invoice, pdf_bytes):
         to=[customer_email],
     )
     email.attach(f'factura_{invoice.id}.pdf', pdf_bytes, 'application/pdf')
-    email.send(fail_silently=False)
-    return True
+    return bool(email.send(fail_silently=True))
 
 
 def send_purchase_email(purchase, pdf_bytes):
@@ -90,5 +89,4 @@ def send_purchase_email(purchase, pdf_bytes):
         to=[supplier_email],
     )
     email.attach(f'compra_{purchase.id}.pdf', pdf_bytes, 'application/pdf')
-    email.send(fail_silently=False)
-    return True
+    return bool(email.send(fail_silently=True))
