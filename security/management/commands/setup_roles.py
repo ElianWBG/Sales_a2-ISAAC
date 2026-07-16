@@ -72,6 +72,10 @@ ROLES = {
         'exportar_pdf_customer', 'exportar_excel_customer',
         'exportar_pdf_invoice', 'exportar_excel_invoice',
         'imprimir_factura',
+        # Cierra facturas CONTADO+PayPal abandonadas en PENDIENTE (B8):
+        # el Cajero es quien atiende el mostrador y ve estas facturas
+        # colgadas, así que necesita poder liberar el stock reservado.
+        'cancelar_invoice_paypal',
     ],
 
     # El Supervisor de Ventas tiene el mismo alcance que Cajero pero con

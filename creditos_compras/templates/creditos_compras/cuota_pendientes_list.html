@@ -36,9 +36,11 @@
             <td class="text-end">${{ cuota.valor }}</td>
             <td class="text-end">${{ cuota.saldo }}</td>
             <td class="text-center">
+              {% if perms.creditos_compras.add_pagocuotacompra %}
               <a href="{% url 'creditos_compras:registrar_pago' cuota.pk %}" class="btn btn-sm btn-primary">
                 <i class="bi bi-cash-coin"></i> Registrar pago
               </a>
+              {% endif %}
             </td>
           </tr>
           {% empty %}

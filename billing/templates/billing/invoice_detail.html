@@ -81,7 +81,9 @@
     <a href="{% url 'billing:invoice_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">Imprimir Factura</a>
     {% endif %}
     {% if invoice.tipo_pago == 'CREDITO' %}
+    {% if perms.creditos_ventas.view_cuotaventa or perms.creditos_ventas.add_cuotaventa or perms.creditos_ventas.change_cuotaventa or perms.creditos_ventas.delete_cuotaventa %}
     <a href="{% url 'creditos_ventas:cuotas_factura' invoice.pk %}" class="btn btn-outline-dark">Ver Cuotas</a>
+    {% endif %}
     {% if perms.creditos_ventas.imprimir_plan_pagos %}
     <a href="{% url 'creditos_ventas:plan_pagos_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">Imprimir Plan de Pagos</a>
     {% endif %}
@@ -93,7 +95,7 @@
 </div>
 
 {% if invoice.estado == 'PENDIENTE' and invoice.metodo_pago == 'PAYPAL' %}
-<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency=USD"></script>
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency=USD&disable-funding=card"></script>
 <script>
 (function () {
   var createOrderUrl = "{% url 'billing:invoice_paypal_create_order' invoice.pk %}";

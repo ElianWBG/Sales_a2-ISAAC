@@ -23,9 +23,11 @@
       </div>
       <div class="col-md-6 text-md-end">
         <p class="mb-1"><strong>Saldo pendiente:</strong> ${{ compra.saldo }}</p>
+        {% if perms.creditos_compras.view_pagocuotacompra or perms.creditos_compras.add_pagocuotacompra or perms.creditos_compras.change_pagocuotacompra or perms.creditos_compras.delete_pagocuotacompra %}
         <a href="{% url 'creditos_compras:historial_pagos_compra' compra.pk %}" class="btn btn-sm btn-outline-secondary">
           <i class="bi bi-clock-history"></i> Historial de pagos
         </a>
+        {% endif %}
       </div>
     </div>
 
@@ -64,14 +66,16 @@
                 <span class="badge {% if cuota.estado == 'PAGADA' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ cuota.estado }}</span>
               </td>
               <td class="text-center text-nowrap">
-                {% if cuota.estado == 'PENDIENTE' %}
+                {% if cuota.estado == 'PENDIENTE' and perms.creditos_compras.add_pagocuotacompra %}
                 <a href="{% url 'creditos_compras:registrar_pago' cuota.pk %}" class="btn btn-sm btn-primary">
                   <i class="bi bi-cash-coin"></i> Registrar pago
                 </a>
                 {% endif %}
+                {% if perms.creditos_compras.view_pagocuotacompra or perms.creditos_compras.add_pagocuotacompra or perms.creditos_compras.change_pagocuotacompra or perms.creditos_compras.delete_pagocuotacompra %}
                 <a href="{% url 'creditos_compras:historial_pagos_cuota' cuota.pk %}" class="btn btn-sm btn-outline-secondary">
                   <i class="bi bi-clock-history"></i> Historial
                 </a>
+                {% endif %}
               </td>
             </tr>
             {% empty %}

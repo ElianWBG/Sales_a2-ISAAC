@@ -682,6 +682,7 @@ class ProductDetailView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, Deta
     context_object_name = 'product'
 
 @login_required
+@permission_required_with_message('billing.view_product', redirect_url='/')
 def product_price(request, pk):
     """Endpoint JSON de solo lectura: precio actual de un producto (autocompletado en Factura/Compra)."""
     product = get_object_or_404(Product, pk=pk)

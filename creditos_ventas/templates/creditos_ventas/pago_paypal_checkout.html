@@ -25,7 +25,7 @@
   </div>
 </div>
 
-<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency=USD"></script>
+<script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency=USD&disable-funding=card"></script>
 <script>
 (function () {
   var createOrderUrl = "{% url 'creditos_ventas:pago_paypal_create_order' pago.pk %}";
