@@ -1,11 +1,39 @@
 {% extends 'billing/base.html' %}
 {% block title %}Cuotas Pendientes{% endblock %}
 {% block content %}
+
 <div class="card shadow-sm border-0">
   <div class="card-header bg-dark text-white py-3">
     <h4 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-exclamation-circle"></i> Cuotas Pendientes</h4>
   </div>
   <div class="card-body p-4">
+
+    {# ── Formulario de búsqueda ── #}
+    <form method="get" class="card card-body shadow-sm border-0 mb-3 bg-light">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-4">
+          <label class="form-label form-label-sm fw-semibold mb-1">{{ search_form.cliente.label }}</label>
+          {{ search_form.cliente }}
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label form-label-sm fw-semibold mb-1">{{ search_form.fecha_desde.label }}</label>
+          {{ search_form.fecha_desde }}
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label form-label-sm fw-semibold mb-1">{{ search_form.fecha_hasta.label }}</label>
+          {{ search_form.fecha_hasta }}
+        </div>
+        <div class="col-12 col-md-2">
+          <label class="form-label form-label-sm fw-semibold mb-1">{{ search_form.estado.label }}</label>
+          {{ search_form.estado }}
+        </div>
+        <div class="col-12 col-md-auto ms-auto d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+          <a href="{% url 'creditos_ventas:cuotas_pendientes' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+        </div>
+      </div>
+    </form>
+
     <p class="text-muted small mb-3">
       <span class="badge bg-danger">&nbsp;</span> Vencida &nbsp;
       <span class="badge bg-white border">&nbsp;</span> Al día

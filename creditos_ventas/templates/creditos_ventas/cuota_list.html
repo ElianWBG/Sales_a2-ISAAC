@@ -23,7 +23,7 @@
       </div>
       <div class="col-md-6 text-md-end">
         <p class="mb-1"><strong>Saldo pendiente:</strong> ${{ factura.saldo }}</p>
-        {% if perms.creditos_ventas.view_pagocuotaventa or perms.creditos_ventas.add_pagocuotaventa or perms.creditos_ventas.change_pagocuotaventa or perms.creditos_ventas.delete_pagocuotaventa %}
+        {% if perms.creditos_ventas.view_pagocuotaventa %}
         <a href="{% url 'creditos_ventas:historial_pagos_factura' factura.pk %}" class="btn btn-sm btn-outline-secondary">
           <i class="bi bi-clock-history"></i> Historial de pagos
         </a>
@@ -63,7 +63,7 @@
               <td class="text-end">${{ cuota.valor }}</td>
               <td class="text-end">${{ cuota.saldo }}</td>
               <td class="text-center">
-                <span class="badge {% if cuota.estado == 'PAGADA' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ cuota.estado }}</span>
+                <span class="badge {% if cuota.estado == 'PAGADA' %}bg-success{% elif cuota.estado_display == 'PARCIAL' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">{{ cuota.estado_display }}</span>
               </td>
               <td class="text-center text-nowrap">
                 {% if cuota.estado == 'PENDIENTE' and perms.creditos_ventas.add_pagocuotaventa %}
@@ -71,7 +71,7 @@
                   <i class="bi bi-cash-coin"></i> Registrar pago
                 </a>
                 {% endif %}
-                {% if perms.creditos_ventas.view_pagocuotaventa or perms.creditos_ventas.add_pagocuotaventa or perms.creditos_ventas.change_pagocuotaventa or perms.creditos_ventas.delete_pagocuotaventa %}
+                {% if perms.creditos_ventas.view_pagocuotaventa %}
                 <a href="{% url 'creditos_ventas:historial_pagos_cuota' cuota.pk %}" class="btn btn-sm btn-outline-secondary">
                   <i class="bi bi-clock-history"></i> Historial
                 </a>
@@ -190,6 +190,13 @@
   });
 
   if (chkSelectAll) {
+    // Sin cuotas pendientes (todas pagadas) no hay nada que seleccionar --
+    // checkboxes ya viene vacío acá porque .cuota-checkbox solo se renderiza
+    // para cuota.estado == 'PENDIENTE' (ver template), así que esto alcanza
+    // sin tener que volver a consultar el estado de cada cuota en JS.
+    if (checkboxes.length === 0) {
+      chkSelectAll.disabled = true;
+    }
     chkSelectAll.addEventListener('change', function () {
       checkboxes.forEach(function (cb) { cb.checked = chkSelectAll.checked; });
       actualizarResumen();

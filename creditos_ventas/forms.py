@@ -65,3 +65,28 @@ class PagoCuotaVentaForm(forms.ModelForm):
                         'La fecha del pago no puede ser anterior a la fecha de la factura.'
                     )
         return fecha
+
+
+# ── Buscador (filtro de Cuotas Pendientes) ──
+class CuotaPendienteSearchForm(forms.Form):
+    ESTADO_CHOICES = [
+        ('', 'Todos'),
+        ('PENDIENTE', 'Sin abonar'),
+        ('PARCIAL', 'Con abono parcial'),
+    ]
+    cliente = forms.CharField(
+        required=False, label='Cliente',
+        widget=forms.TextInput(attrs={'class': 'form-control form-control-sm', 'placeholder': 'Nombre, apellido o DNI…'})
+    )
+    fecha_desde = forms.DateField(
+        required=False, label='Vence desde',
+        widget=forms.DateInput(attrs={'class': 'form-control form-control-sm', 'type': 'date'})
+    )
+    fecha_hasta = forms.DateField(
+        required=False, label='Vence hasta',
+        widget=forms.DateInput(attrs={'class': 'form-control form-control-sm', 'type': 'date'})
+    )
+    estado = forms.ChoiceField(
+        required=False, label='Estado', choices=ESTADO_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select form-select-sm'})
+    )

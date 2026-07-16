@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
+from django.db.models import F
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -16,7 +17,7 @@ from shared.mixins import ProtectedDeleteMixin, PermissionRequiredMixin, AnyCrud
 from shared.decorators import permission_required_with_message, any_crud_permission_required
 
 from .models import CuotaCompra, PagoCuotaCompra
-from .forms import PagoCuotaCompraForm
+from .forms import PagoCuotaCompraForm, CuotaCompraPendienteSearchForm
 from .services import recalcular_cuota, recalcular_compra
 from .plan_pagos_pdf import generar_pdf_plan_pagos_compra
 
@@ -28,6 +29,10 @@ class CuotaListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView
     model = CuotaCompra
     template_name = 'creditos_compras/cuota_list.html'
     context_object_name = 'cuotas'
+    # add/change/delete son decorativos en CuotaCompra y están ocultos en la
+    # matriz de permisos (ACTIONS_EXCLUDED_PER_MODEL) -- mismo motivo que
+    # creditos_ventas.CuotaListView.crud_actions. Ver es la única acción real.
+    crud_actions = ('view',)
 
     def get_queryset(self):
         self.compra = get_object_or_404(Purchase, pk=self.kwargs['pk'])
@@ -44,18 +49,34 @@ class CuotaPendientesListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin
     model = CuotaCompra
     template_name = 'creditos_compras/cuota_pendientes_list.html'
     context_object_name = 'cuotas'
+    crud_actions = ('view',)  # mismo motivo que CuotaListView
 
     def get_queryset(self):
-        return (
+        qs = (
             CuotaCompra.objects
             .filter(estado='PENDIENTE')
             .select_related('compra', 'compra__supplier')
             .order_by('fecha_vencimiento')
         )
+        form = CuotaCompraPendienteSearchForm(self.request.GET)
+        if form.is_valid():
+            if form.cleaned_data.get('proveedor'):
+                qs = qs.filter(compra__supplier__name__icontains=form.cleaned_data['proveedor'])
+            if form.cleaned_data.get('fecha_desde'):
+                qs = qs.filter(fecha_vencimiento__gte=form.cleaned_data['fecha_desde'])
+            if form.cleaned_data.get('fecha_hasta'):
+                qs = qs.filter(fecha_vencimiento__lte=form.cleaned_data['fecha_hasta'])
+            estado = form.cleaned_data.get('estado')
+            if estado == 'PENDIENTE':
+                qs = qs.filter(saldo=F('valor'))
+            elif estado == 'PARCIAL':
+                qs = qs.filter(saldo__lt=F('valor'))
+        return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['hoy'] = timezone.localdate()
+        ctx['search_form'] = CuotaCompraPendienteSearchForm(self.request.GET)
         return ctx
 
 
@@ -212,6 +233,10 @@ class HistorialPagosCuotaView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin
     model = PagoCuotaCompra
     template_name = 'creditos_compras/historial_pagos.html'
     context_object_name = 'pagos'
+    # "Ver" controla el Historial de forma independiente de "Crear" (que
+    # gatea registrar_pago aparte) -- mismo motivo que
+    # creditos_ventas.HistorialPagosCuotaView.
+    crud_actions = ('view',)
 
     def get_queryset(self):
         self.cuota = get_object_or_404(CuotaCompra, pk=self.kwargs['pk'])
@@ -229,6 +254,7 @@ class HistorialPagosCompraView(LoginRequiredMixin, AnyCrudPermissionRequiredMixi
     model = PagoCuotaCompra
     template_name = 'creditos_compras/historial_pagos.html'
     context_object_name = 'pagos'
+    crud_actions = ('view',)  # mismo motivo que HistorialPagosCuotaView
 
     def get_queryset(self):
         self.compra = get_object_or_404(Purchase, pk=self.kwargs['pk'])

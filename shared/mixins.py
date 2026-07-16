@@ -207,33 +207,46 @@ class GracefulPaginationMixin:
         return (paginator, page, page.object_list, page.has_other_pages())
 
 
-def has_any_crud_permission(user, app_label, model_name):
+def has_any_crud_permission(user, app_label, model_name, actions=('view', 'add', 'change', 'delete')):
     """
-    True si `user` tiene AL MENOS UNO de los 4 permisos nativos de Django
-    (view/add/change/delete) sobre `app_label.model_name`.
+    True si `user` tiene AL MENOS UNO de los permisos nativos de Django
+    listados en `actions` sobre `app_label.model_name` (por defecto los 4:
+    view/add/change/delete).
 
     Django no ofrece esto de fábrica: PermissionRequiredMixin, cuando se
     le pasan varios permisos, exige TODOS (AND vía user.has_perms()). Acá
-    se necesita lo contrario -- que baste con cualquiera de los 4 (OR) --
-    así que se arma a mano con any(). user.has_perm() ya deja pasar al
+    se necesita lo contrario -- que baste con cualquiera (OR) -- así que
+    se arma a mano con any(). user.has_perm() ya deja pasar al
     superusuario automáticamente, no hace falta chequearlo aparte.
 
     Fase 2b: reemplaza el acceso abierto temporal de la Fase 2a en las
     22 vistas de billing/purchasing/creditos_ventas/creditos_compras que
     antes bloqueaban con un único view_<modelo> (AnyCrudPermissionRequiredMixin,
     any_crud_permission_required) y en los links del navbar (base.html).
+
+    El parámetro `actions` existe para CuotaVenta/CuotaCompra/PagoCuotaVenta/
+    PagoCuotaCompra (ver AnyCrudPermissionRequiredMixin.crud_actions): en
+    esos 4 modelos, la mitad de las 4 acciones nativas son decorativas (sin
+    vista propia) Y están excluidas de la matriz de Roles→Permisos
+    (ACTIONS_EXCLUDED_PER_MODEL en security/views.py) -- si un rol las
+    tuviera asignadas de antes (ej. venían de un rol '__all__'), no hay
+    checkbox para sacárselas, y el OR de las 4 le seguiría dando acceso
+    aunque la acción real (Ver/Eliminar, o Ver/Crear en Pagos) esté
+    desmarcada. Los 22 usos restantes de este mixin no pasan `actions`,
+    así que su comportamiento (los 4 CRUD) no cambia.
     """
     return any(
         user.has_perm(f'{app_label}.{action}_{model_name}')
-        for action in ('view', 'add', 'change', 'delete')
+        for action in actions
     )
 
 
 class AnyCrudPermissionRequiredMixin:
     """
     Mixin para CBV (ListView/DetailView): exige que el usuario tenga AL
-    MENOS UNO de los 4 permisos nativos (view/add/change/delete) sobre
-    `self.model` -- lógica OR, no la lógica AND de PermissionRequiredMixin.
+    MENOS UNO de los permisos nativos (view/add/change/delete, o el
+    subconjunto de `crud_actions`) sobre `self.model` -- lógica OR, no la
+    lógica AND de PermissionRequiredMixin.
 
     Deriva app_label/model_name de `self.model` automáticamente; solo
     hace falta sobreescribir get_permission_app_label_model() si la vista
@@ -244,9 +257,14 @@ class AnyCrudPermissionRequiredMixin:
     ya se usaba con PermissionRequiredMixin):
         class ProductListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView):
             model = Product
+
+    `crud_actions` (default: los 4 nativos) se puede angostar en una vista
+    puntual cuando el modelo tiene acciones decorativas que además están
+    ocultas en la matriz de permisos -- ver has_any_crud_permission().
     """
     permission_redirect_url = '/'
     permission_denied_message = 'No tienes permiso para acceder a esta sección.'
+    crud_actions = ('view', 'add', 'change', 'delete')
 
     def get_permission_app_label_model(self):
         opts = self.model._meta
@@ -254,7 +272,7 @@ class AnyCrudPermissionRequiredMixin:
 
     def has_permission(self):
         app_label, model_name = self.get_permission_app_label_model()
-        return has_any_crud_permission(self.request.user, app_label, model_name)
+        return has_any_crud_permission(self.request.user, app_label, model_name, self.crud_actions)
 
     def dispatch(self, request, *args, **kwargs):
         if not self.has_permission():

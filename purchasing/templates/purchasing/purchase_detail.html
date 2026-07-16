@@ -57,7 +57,7 @@
       <a href="{% url 'purchasing:purchase_pdf' purchase.pk %}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-printer"></i> Imprimir Compra</a>
       {% endif %}
       {% if purchase.tipo_pago == 'CREDITO' %}
-      {% if perms.creditos_compras.view_cuotacompra or perms.creditos_compras.add_cuotacompra or perms.creditos_compras.change_cuotacompra or perms.creditos_compras.delete_cuotacompra %}
+      {% if perms.creditos_compras.view_cuotacompra %}
       <a href="{% url 'creditos_compras:cuotas_compra' purchase.pk %}" class="btn btn-outline-dark"><i class="bi bi-calendar-check"></i> Ver Cuotas</a>
       {% endif %}
       {% if perms.creditos_compras.imprimir_plan_pagos %}

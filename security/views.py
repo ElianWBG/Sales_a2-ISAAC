@@ -1,3 +1,4 @@
+import re
 import secrets
 import string
 
@@ -6,14 +7,20 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User, Group, Permission
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView
 from django.shortcuts import redirect, get_object_or_404
-from django.urls import reverse_lazy
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
+from django.urls import reverse, reverse_lazy
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView, View
 
 from shared.mixins import GroupRequiredMixin
 from shared.emails import send_welcome_email_with_temp_password
 from .forms import CambiarPasswordForm, UserUpdateForm, GroupForm, PermissionForm, AdminUserCreateForm
-from .models import PerfilUsuario
+from .models import PerfilUsuario, RoleDefaultPermissions
 from .utils import generar_username, es_ultimo_administrador_activo
+from .management.commands.setup_roles import ROLES, resolve_role_permissions
+
+# Los 6 roles que setup_roles.py define como fuente de verdad en código --
+# cualquier otro Group es "custom" (creado a mano con "+ Nuevo rol"). Ver
+# RoleDefaultPermissionsSaveView/ApplyView y RolePermissionsView.
+FIXED_ROLE_NAMES = set(ROLES.keys())
 
 
 # === MIXIN BASE: SOLO ADMINISTRADOR ===
@@ -353,14 +360,18 @@ MODELS_EXCLUDED_FROM_MATRIX = {
 # efecto, fila por fila:
 #   - CuotaVenta/CuotaCompra: se generan solo automáticamente dentro de
 #     invoice_create/purchase_create (generar_cuotas), nunca por un
-#     formulario propio -> add/change no hacen nada. view (CuotaListView)
-#     y delete (CuotaDeleteView) sí son reales.
+#     formulario propio -> add/change no hacen nada. CuotaDeleteView
+#     existe y funciona, pero no hay ningún botón/link en toda la UI que
+#     apunte a esa URL (confirmado: cero referencias a "cuota_delete" en
+#     los templates) -- solo alcanzable escribiendo la URL a mano, así
+#     que delete tampoco tiene efecto real desde la interfaz. Únicamente
+#     view (CuotaListView/CuotaPendientesListView) es real.
 #   - PagoCuotaVenta/PagoCuotaCompra: no existe vista para editar ni
 #     eliminar un pago ya registrado -> change/delete no hacen nada.
 #     view (historial) y add (registrar_pago/pago en lote) sí son reales.
 ACTIONS_EXCLUDED_PER_MODEL = {
-    'cuotaventa': {'add', 'change'},
-    'cuotacompra': {'add', 'change'},
+    'cuotaventa': {'add', 'change', 'delete'},
+    'cuotacompra': {'add', 'change', 'delete'},
     'pagocuotaventa': {'change', 'delete'},
     'pagocuotacompra': {'change', 'delete'},
 }
@@ -373,12 +384,51 @@ def _permiso_visible_en_matriz(model_key, action):
     exclusión, usada tanto al construir la matriz (get_context_data) como
     al guardarla (post). Que ambas consulten la misma función evita que
     se desincronicen si alguna vez se agrega/quita una exclusión.
+
+    Ojo: esto solo cubre exclusiones DENTRO de una app que la matriz ya
+    trackea -- ver _permiso_editable_en_matriz para la app_label completa.
     """
     if model_key in MODELS_EXCLUDED_FROM_MATRIX:
         return False
     if action in ACTIONS_EXCLUDED_PER_MODEL.get(model_key, ()):
         return False
     return True
+
+
+def _allowed_app_labels(role):
+    """
+    App labels que la matriz de Roles→Permisos muestra para `role` --
+    extraído acá para que get_context_data() (qué se muestra) y post()
+    (qué se preserva al guardar) usen siempre la misma fuente. 'auth'
+    (User/Group/Permission) solo se muestra si el rol es Administrador.
+    """
+    allowed = dict(APP_LABEL_DISPLAY)
+    if role.name != 'Administrador':
+        allowed.pop('auth', None)
+    return allowed
+
+
+def _permiso_editable_en_matriz(role, permission):
+    """
+    True si `permission` tiene un checkbox editable en la matriz de
+    Roles→Permisos PARA ESTE ROL -- única fuente de verdad usada tanto al
+    construir la matriz como al guardarla (post()).
+
+    BUG REAL encontrado y corregido acá: _permiso_visible_en_matriz por sí
+    sola solo mira modelo/acción DENTRO de una app ya trackeada -- nunca
+    contempla permisos de apps que ni siquiera están en APP_LABEL_DISPLAY
+    (los nativos de Django: contenttypes, sessions, admin.logentry) ni
+    'auth' para un rol que no sea Administrador. Como esos permisos jamás
+    tienen checkbox en ningún módulo, post() los trataba como "visibles"
+    (nunca entraban a permisos_ocultos_asignados) y .set() los borraba en
+    CUALQUIER guardado de CUALQUIER rol que los tuviera -- por ejemplo
+    Administrador, que los recibe vía setup_roles.py ('__all__'). Con este
+    chequeo de app_label agregado, quedan preservados sin importar qué rol
+    se guarde ni cuántas veces.
+    """
+    if permission.content_type.app_label not in _allowed_app_labels(role):
+        return False
+    return _permiso_visible_en_matriz(permission.content_type.model, _parse_action(permission.codename))
 
 
 class RolePermissionsView(AdminOnlyMixin, DetailView):
@@ -396,15 +446,24 @@ class RolePermissionsView(AdminOnlyMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx['roles'] = Group.objects.all().order_by('name')
 
+        # Botones "Guardar como predeterminado" / "Permisos predeterminados"
+        # -- ver RoleDefaultPermissionsSaveView/ApplyView. Fijo = setup_roles.py
+        # es la fuente de verdad, no se guarda un default aparte. Custom =
+        # "Guardar" siempre visible; "Permisos predeterminados" solo si ya
+        # hay uno guardado.
+        ctx['es_rol_fijo'] = self.object.name in FIXED_ROLE_NAMES
+        ctx['default_guardado_existe'] = (
+            not ctx['es_rol_fijo']
+            and RoleDefaultPermissions.objects.filter(group=self.object).exists()
+        )
+
         assigned_ids = set(self.object.permissions.values_list('id', flat=True))
 
         # El módulo "Usuarios y Roles" (permisos de auth: User/Group) es
         # administrativo por naturaleza: solo el rol Administrador debe
         # poder verlo/editarlo aquí. Para cualquier otro rol, ni siquiera
         # se muestra la opción, para evitar que se marque por error.
-        allowed_app_labels = dict(APP_LABEL_DISPLAY)
-        if self.object.name != 'Administrador':
-            allowed_app_labels.pop('auth', None)
+        allowed_app_labels = _allowed_app_labels(self.object)
 
         perms = (
             Permission.objects
@@ -460,23 +519,118 @@ class RolePermissionsView(AdminOnlyMixin, DetailView):
 
         # BUG REAL encontrado y corregido: la matriz no muestra TODOS los
         # permisos del sistema (ver MODELS_EXCLUDED_FROM_MATRIX /
-        # ACTIONS_EXCLUDED_PER_MODEL) -- los ocultos nunca tienen checkbox
-        # en el HTML, así que nunca llegan en el POST. Antes, `.set()`
-        # reemplazaba el set COMPLETO con lo recibido, así que guardar la
-        # matriz de un rol que ya tuviera alguno de esos permisos asignados
-        # (ej. Vendedor con view_customerprofile) lo borraba en silencio,
-        # aunque el usuario no hubiera tocado nada relacionado. Ahora se
-        # preservan tal cual estaban los permisos ocultos que el rol ya
-        # tenía, y solo se reemplazan los que sí son editables en pantalla.
+        # ACTIONS_EXCLUDED_PER_MODEL, y _allowed_app_labels para apps
+        # enteras fuera de la matriz como contenttypes/sessions/admin) --
+        # los ocultos nunca tienen checkbox en el HTML, así que nunca
+        # llegan en el POST. Antes, `.set()` reemplazaba el set COMPLETO
+        # con lo recibido, así que guardar la matriz de un rol que ya
+        # tuviera alguno de esos permisos asignados (ej. Vendedor con
+        # view_customerprofile, o Administrador con contenttypes/sessions
+        # vía setup_roles.py) lo borraba en silencio, aunque el usuario no
+        # hubiera tocado nada relacionado. Ahora se preservan tal cual
+        # estaban los permisos ocultos que el rol ya tenía, y solo se
+        # reemplazan los que sí son editables en pantalla.
         permisos_ocultos_asignados = [
             p for p in self.object.permissions.select_related('content_type')
-            if not _permiso_visible_en_matriz(p.content_type.model, _parse_action(p.codename))
+            if not _permiso_editable_en_matriz(self.object, p)
         ]
         nuevos_editables = Permission.objects.filter(id__in=selected_ids)
         self.object.permissions.set(list(nuevos_editables) + permisos_ocultos_asignados)
 
         messages.success(request, f'Permisos del rol "{self.object.name}" actualizados correctamente.')
-        return redirect('security:role_permissions', pk=self.object.pk)
+
+        # Vuelve a la sección del acordeón que el usuario tenía abierta al
+        # guardar (ver JS de role_permissions.html), en vez de siempre a la
+        # primera. Es puramente de UX -- el id ("modN") se valida estricto
+        # antes de pegarlo en la URL de redirect, nunca se usa en la lógica
+        # de guardado de arriba.
+        seccion_abierta = request.POST.get('seccion_abierta', '')
+        url = reverse('security:role_permissions', kwargs={'pk': self.object.pk})
+        if re.fullmatch(r'mod\d+', seccion_abierta):
+            url = f'{url}#{seccion_abierta}'
+        return redirect(url)
+
+
+class RoleDefaultPermissionsSaveView(AdminOnlyMixin, View):
+    """
+    Botón "Guardar como predeterminado" -- solo para roles CUSTOM (fuera
+    de FIXED_ROLE_NAMES). Guarda una fotografía COMPLETA de los permisos
+    actuales del rol (todos, no solo los visibles en la matriz) en
+    RoleDefaultPermissions. La confirmación de "¿sobrescribir?" la hace el
+    template (modal Bootstrap #modalGuardarDefault) usando
+    default_guardado_existe -- acá solo se re-verifica server-side que el
+    rol no sea uno de los 6 fijos, por si alguien arma el POST a mano.
+    """
+    def post(self, request, pk):
+        role = get_object_or_404(Group, pk=pk)
+        if role.name in FIXED_ROLE_NAMES:
+            messages.error(
+                request,
+                f'"{role.name}" es un rol del sistema -- su fuente de verdad es '
+                f'setup_roles.py, no admite guardar un default aparte.'
+            )
+            return redirect('security:role_permissions', pk=role.pk)
+
+        default_obj, created = RoleDefaultPermissions.objects.get_or_create(group=role)
+        # set() acá es la fotografía completa, no el merge parcial de
+        # RolePermissionsView.post() -- se guarda TODO lo que el rol tiene
+        # ahora mismo (visible u oculto en la matriz), sin filtrar nada.
+        default_obj.permissions.set(role.permissions.all())
+
+        # extra_tags='auto-dismiss': SOLO estos 2 mensajes de éxito llevan
+        # este flag (ver base.html) -- el resto de los messages.success/
+        # error del sistema no lo usan y siguen cerrándose solo con la X.
+        if created:
+            messages.success(request, f'Permisos predeterminados guardados para "{role.name}".', extra_tags='auto-dismiss')
+        else:
+            messages.success(request, f'Permisos predeterminados de "{role.name}" actualizados.', extra_tags='auto-dismiss')
+        return redirect('security:role_permissions', pk=role.pk)
+
+
+class RoleDefaultPermissionsApplyView(AdminOnlyMixin, View):
+    """
+    Botón "Permisos predeterminados" -- reemplaza los permisos ACTUALES
+    del rol por su default:
+      - Rol fijo: resuelve ROLES[nombre] de setup_roles.py con
+        resolve_role_permissions() y lo aplica SOLO a este rol (no corre
+        el comando completo, no toca los otros 5).
+      - Rol custom: aplica la fotografía guardada en RoleDefaultPermissions.
+        Si todavía no guardó ninguna, no hay nada que aplicar (el botón ni
+        se muestra en ese caso, pero se re-valida server-side igual).
+
+    En los dos casos es un .set() directo y completo (mismo patrón ya
+    probado en el fix del bug de conteo) -- no pasa por el merge parcial
+    de permisos_ocultos_asignados porque acá no hace falta: el conjunto a
+    aplicar ya es completo por construcción (todo el default), no un
+    subconjunto editable de la matriz.
+    """
+    def post(self, request, pk):
+        role = get_object_or_404(Group, pk=pk)
+
+        if role.name in FIXED_ROLE_NAMES:
+            perms = resolve_role_permissions(ROLES[role.name])
+            role.permissions.set(perms)
+            messages.success(
+                request,
+                f'Se restauraron los permisos predeterminados de "{role.name}" (setup_roles.py).',
+                extra_tags='auto-dismiss',
+            )
+        else:
+            try:
+                default_obj = role.default_permissions
+            except RoleDefaultPermissions.DoesNotExist:
+                messages.error(
+                    request,
+                    f'"{role.name}" todavía no tiene permisos predeterminados guardados.'
+                )
+                return redirect('security:role_permissions', pk=role.pk)
+            role.permissions.set(default_obj.permissions.all())
+            messages.success(
+                request,
+                f'Se restauraron los permisos predeterminados guardados de "{role.name}".',
+                extra_tags='auto-dismiss',
+            )
+        return redirect('security:role_permissions', pk=role.pk)
 
 
 # === CAMBIO OBLIGATORIO DE CONTRASEÑA (primer login con clave temporal) ===

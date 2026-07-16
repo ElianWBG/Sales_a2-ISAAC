@@ -20,6 +20,8 @@ urlpatterns = [
     path('roles/<int:pk>/edit/', views.GroupUpdateView.as_view(), name='group_update'),
     path('roles/<int:pk>/delete/', views.GroupDeleteView.as_view(), name='group_delete'),
     path('roles/<int:pk>/permisos/', views.RolePermissionsView.as_view(), name='role_permissions'),
+    path('roles/<int:pk>/permisos/guardar-default/', views.RoleDefaultPermissionsSaveView.as_view(), name='role_permissions_guardar_default'),
+    path('roles/<int:pk>/permisos/aplicar-default/', views.RoleDefaultPermissionsApplyView.as_view(), name='role_permissions_aplicar_default'),
 
     # Permisos (Permission)
     path('permissions/', views.PermissionListView.as_view(), name='permission_list'),

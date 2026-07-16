@@ -29,7 +29,7 @@
               {% if pago.fecha > pago.cuota.fecha_vencimiento %}<span class="badge bg-danger ms-1">⚠ Pagado con retraso</span>{% endif %}
             </td>
             <td class="text-end">${{ pago.valor }}</td>
-            <td>{{ pago.observacion|default:"—" }}</td>
+            <td>{{ pago.observacion_display }}</td>
           </tr>
           {% empty %}
           <tr><td colspan="{% if cuota %}3{% else %}4{% endif %}" class="text-center text-muted py-3">Sin pagos registrados.</td></tr>

@@ -26,7 +26,11 @@ ROLES = {
         'view_supplier', 'add_supplier', 'change_supplier', 'delete_supplier',
         'view_product', 'add_product', 'change_product', 'delete_product',
         # Mismo nivel de acceso que ya tiene sobre Producto/Proveedor.
-        'view_cuotacompra', 'add_cuotacompra', 'change_cuotacompra', 'delete_cuotacompra',
+        # delete_cuotacompra NO va acá: no controla ninguna función real
+        # (CuotaDeleteView existe pero no hay ningún botón que la use en
+        # toda la UI, confirmado) -- dejarlo asignado no le daba a este
+        # rol ninguna capacidad real, solo abultaba el permiso sin motivo.
+        'view_cuotacompra', 'add_cuotacompra', 'change_cuotacompra',
         'view_pagocuotacompra', 'add_pagocuotacompra', 'change_pagocuotacompra', 'delete_pagocuotacompra',
         # Exportar PDF/Excel de todo el catálogo que gestiona.
         'exportar_pdf_brand', 'exportar_excel_brand',
@@ -94,6 +98,31 @@ ROLES = {
 }
 
 
+def resolve_role_permissions(codenames):
+    """
+    Devuelve el queryset de Permission que corresponde a una entrada de
+    ROLES (ya sea '__all__' o una lista de codenames planos/calificados).
+    Extraído de Command.handle() para que RoleDefaultPermissionsApplyView
+    (botón "Permisos predeterminados" de un rol fijo) pueda reconstruir el
+    default de UN solo rol sin correr el comando completo sobre los otros
+    5 -- misma lógica, una sola fuente de verdad.
+    """
+    if codenames == '__all__':
+        return Permission.objects.all()
+    # Entradas planas: codename tal cual (puede matchear más de un
+    # content_type si el codename se repite entre modelos). Entradas
+    # (app_label, codename): califican el content_type para evitar
+    # traerse el permiso homónimo de otra app.
+    plain = [c for c in codenames if isinstance(c, str)]
+    qualified = [c for c in codenames if isinstance(c, tuple)]
+    perms = Permission.objects.filter(codename__in=plain)
+    for app_label, codename in qualified:
+        perms = perms | Permission.objects.filter(
+            codename=codename, content_type__app_label=app_label
+        )
+    return perms
+
+
 class Command(BaseCommand):
     help = 'Crea los 6 roles del sistema con sus permisos'
 
@@ -101,21 +130,7 @@ class Command(BaseCommand):
         for role_name, codenames in ROLES.items():
             # get_or_create: si el rol ya existe NO lo duplica
             group, created = Group.objects.get_or_create(name=role_name)
-
-            if codenames == '__all__':
-                perms = Permission.objects.all()
-            else:
-                # Entradas planas: codename tal cual (puede matchear más de
-                # un content_type si el codename se repite entre modelos).
-                # Entradas (app_label, codename): califican el content_type
-                # para evitar traerse el permiso homónimo de otra app.
-                plain = [c for c in codenames if isinstance(c, str)]
-                qualified = [c for c in codenames if isinstance(c, tuple)]
-                perms = Permission.objects.filter(codename__in=plain)
-                for app_label, codename in qualified:
-                    perms = perms | Permission.objects.filter(
-                        codename=codename, content_type__app_label=app_label
-                    )
+            perms = resolve_role_permissions(codenames)
 
             # set() reemplaza los permisos del rol por esta lista
             group.permissions.set(perms)

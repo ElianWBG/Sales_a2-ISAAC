@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
+from django.db.models import Q, F
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -18,7 +19,7 @@ from shared.decorators import permission_required_with_message, any_crud_permiss
 from shared.paypal_client import create_paypal_order, capture_paypal_order, extract_capture_data, PayPalError
 
 from .models import CuotaVenta, PagoCuotaVenta
-from .forms import PagoCuotaVentaForm
+from .forms import PagoCuotaVentaForm, CuotaPendienteSearchForm
 from .services import recalcular_cuota, recalcular_factura
 from .plan_pagos_pdf import generar_pdf_plan_pagos
 
@@ -30,6 +31,15 @@ class CuotaListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin, ListView
     model = CuotaVenta
     template_name = 'creditos_ventas/cuota_list.html'
     context_object_name = 'cuotas'
+    # add/change/delete son decorativos en CuotaVenta y están ocultos en la
+    # matriz de permisos (ACTIONS_EXCLUDED_PER_MODEL): add/change porque no
+    # hay formulario propio (las cuotas se generan solo en generar_cuotas),
+    # delete porque CuotaDeleteView existe pero ningún template la enlaza.
+    # Si se dejara el default de los 4 CRUD, un rol que alguna vez tuvo
+    # cualquiera de estos tres (ej. viniendo de un rol '__all__') mantendría
+    # acceso a "Ver Cuotas" para siempre, sin ningún checkbox con el que
+    # quitárselo -- Ver es la única acción real acá.
+    crud_actions = ('view',)
 
     def get_queryset(self):
         self.factura = get_object_or_404(Invoice, pk=self.kwargs['pk'])
@@ -46,18 +56,39 @@ class CuotaPendientesListView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin
     model = CuotaVenta
     template_name = 'creditos_ventas/cuota_pendientes_list.html'
     context_object_name = 'cuotas'
+    crud_actions = ('view',)  # mismo motivo que CuotaListView
 
     def get_queryset(self):
-        return (
+        qs = (
             CuotaVenta.objects
             .filter(estado='PENDIENTE')
             .select_related('factura', 'factura__customer')
             .order_by('fecha_vencimiento')
         )
+        form = CuotaPendienteSearchForm(self.request.GET)
+        if form.is_valid():
+            if form.cleaned_data.get('cliente'):
+                q = form.cleaned_data['cliente']
+                qs = qs.filter(
+                    Q(factura__customer__first_name__icontains=q) |
+                    Q(factura__customer__last_name__icontains=q) |
+                    Q(factura__customer__dni__icontains=q)
+                )
+            if form.cleaned_data.get('fecha_desde'):
+                qs = qs.filter(fecha_vencimiento__gte=form.cleaned_data['fecha_desde'])
+            if form.cleaned_data.get('fecha_hasta'):
+                qs = qs.filter(fecha_vencimiento__lte=form.cleaned_data['fecha_hasta'])
+            estado = form.cleaned_data.get('estado')
+            if estado == 'PENDIENTE':
+                qs = qs.filter(saldo=F('valor'))
+            elif estado == 'PARCIAL':
+                qs = qs.filter(saldo__lt=F('valor'))
+        return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['hoy'] = timezone.localdate()
+        ctx['search_form'] = CuotaPendienteSearchForm(self.request.GET)
         return ctx
 
 
@@ -290,6 +321,13 @@ class HistorialPagosCuotaView(LoginRequiredMixin, AnyCrudPermissionRequiredMixin
     model = PagoCuotaVenta
     template_name = 'creditos_ventas/historial_pagos.html'
     context_object_name = 'pagos'
+    # "Ver" controla el acceso al Historial de forma independiente de
+    # "Crear" (que gatea registrar_pago aparte, con su propio permission_
+    # required_with_message) -- antes esto era ('view', 'add') por OR con
+    # la acción real de la fila, pero eso significaba que alguien sin "Ver"
+    # podía igual entrar al Historial con solo "Crear" marcado. change/
+    # delete siguen sin efecto (no hay vista para editar/eliminar un pago).
+    crud_actions = ('view',)
 
     def get_queryset(self):
         self.cuota = get_object_or_404(CuotaVenta, pk=self.kwargs['pk'])
@@ -307,6 +345,7 @@ class HistorialPagosFacturaView(LoginRequiredMixin, AnyCrudPermissionRequiredMix
     model = PagoCuotaVenta
     template_name = 'creditos_ventas/historial_pagos.html'
     context_object_name = 'pagos'
+    crud_actions = ('view',)  # mismo motivo que HistorialPagosCuotaView
 
     def get_queryset(self):
         self.factura = get_object_or_404(Invoice, pk=self.kwargs['pk'])

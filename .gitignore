@@ -12,6 +12,10 @@ __pycache__/
 dbsalesA2.sqlite3
 media/
 
+# Volcados de base de datos -- nunca al repo
+outputs/
+*.dump
+
 # Editor
 .vscode/
 .idea/

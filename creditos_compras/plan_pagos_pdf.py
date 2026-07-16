@@ -84,7 +84,7 @@ def generar_pdf_plan_pagos_compra(purchase):
                 str(pago.cuota.numero),
                 fecha_str,
                 f'${pago.valor}',
-                pago.observacion or '-',
+                pago.observacion_display,
             ])
     else:
         pago_rows.append(['Sin pagos registrados.', '', '', ''])

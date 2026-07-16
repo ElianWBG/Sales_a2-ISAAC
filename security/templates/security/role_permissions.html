@@ -35,13 +35,84 @@
         <h4 class="mb-0">{{ role.name }}</h4>
         <small class="text-muted">{{ role.permissions.count }} permisos asignados · {{ role.user_set.count }} usuarios con este rol</small>
       </div>
-      <a href="{% url 'security:group_update' role.pk %}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-pencil"></i> Renombrar rol
-      </a>
+      <div class="d-flex gap-2">
+        {% if not es_rol_fijo %}
+        <form method="post" action="{% url 'security:role_permissions_guardar_default' role.pk %}" id="form-guardar-default">
+          {% csrf_token %}
+        </form>
+        <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalGuardarDefault">
+          <i class="bi bi-download"></i> Guardar como predeterminado
+        </button>
+        {% endif %}
+        {% if es_rol_fijo or default_guardado_existe %}
+        <form method="post" action="{% url 'security:role_permissions_aplicar_default' role.pk %}" id="form-aplicar-default">
+          {% csrf_token %}
+        </form>
+        <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#modalAplicarDefault">
+          <i class="bi bi-arrow-counterclockwise"></i> Permisos predeterminados
+        </button>
+        {% endif %}
+        <a href="{% url 'security:group_update' role.pk %}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-pencil"></i> Renombrar rol
+        </a>
+      </div>
     </div>
+
+    {# ── Modales de confirmación (mismo estilo que colModal en los listados) ── #}
+    {% if not es_rol_fijo %}
+    <div class="modal fade" id="modalGuardarDefault" tabindex="-1" aria-labelledby="modalGuardarDefaultLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+          <div class="modal-header text-white" style="background:linear-gradient(135deg,#1a56db,#0e3fa5);">
+            <h5 class="modal-title d-flex align-items-center gap-2" id="modalGuardarDefaultLabel">
+              <i class="bi bi-download"></i> Guardar como predeterminado
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4">
+            {% if default_guardado_existe %}
+            <p class="mb-0">Ya existe un default guardado para <strong>"{{ role.name }}"</strong>. ¿Sobrescribirlo con los permisos actuales?</p>
+            {% else %}
+            <p class="mb-0">¿Guardar los permisos actuales de <strong>"{{ role.name }}"</strong> como predeterminados?</p>
+            {% endif %}
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" form="form-guardar-default" class="btn btn-success btn-sm px-4">
+              <i class="bi bi-check-lg"></i> Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {% if es_rol_fijo or default_guardado_existe %}
+    <div class="modal fade" id="modalAplicarDefault" tabindex="-1" aria-labelledby="modalAplicarDefaultLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+          <div class="modal-header text-white" style="background:linear-gradient(135deg,#1a56db,#0e3fa5);">
+            <h5 class="modal-title d-flex align-items-center gap-2" id="modalAplicarDefaultLabel">
+              <i class="bi bi-arrow-counterclockwise"></i> Permisos predeterminados
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4">
+            <p class="mb-0">¿Aplicar los permisos predeterminados de <strong>"{{ role.name }}"</strong>? Esto reemplaza los permisos actuales del rol.</p>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" form="form-aplicar-default" class="btn btn-info btn-sm px-4">
+              <i class="bi bi-check-lg"></i> Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <form method="post" id="permForm">
       {% csrf_token %}
+      <input type="hidden" name="seccion_abierta" id="id-seccion-abierta">
       <div class="accordion" id="modulesAccordion">
         {% for module_name, models_dict in modules.items %}
         {% with module_id=forloop.counter %}
@@ -159,6 +230,38 @@
   });
 
   updateAllBadges();
+
+  // ── Recordar qué sección del acordeón estaba abierta al guardar ──
+  // Al enviar el form, se guarda el id de la sección visible en ese
+  // momento (".accordion-collapse.show") en el campo oculto; la vista
+  // la devuelve como fragmento de la URL de redirect (#modN).
+  var permForm = document.getElementById('permForm');
+  var campoSeccion = document.getElementById('id-seccion-abierta');
+  if (permForm && campoSeccion) {
+    permForm.addEventListener('submit', function () {
+      var abierta = document.querySelector('.accordion-collapse.show');
+      campoSeccion.value = abierta ? abierta.id : '';
+    });
+  }
+
+  // Al cargar, si la URL trae ese fragmento, expande esa sección en vez
+  // de dejar la primera (que es la que el template marca "show" por
+  // defecto) y hace scroll hasta ella.
+  document.addEventListener('DOMContentLoaded', function () {
+    var hash = window.location.hash;
+    if (!hash || hash.length < 2) return;
+    var target = document.getElementById(hash.slice(1));
+    if (!target || !target.classList.contains('accordion-collapse')) return;
+    if (!target.classList.contains('show') && window.bootstrap) {
+      document.querySelectorAll('.accordion-collapse.show').forEach(function (abierta) {
+        if (abierta !== target) {
+          bootstrap.Collapse.getOrCreateInstance(abierta, { toggle: false }).hide();
+        }
+      });
+      bootstrap.Collapse.getOrCreateInstance(target, { toggle: false }).show();
+    }
+    target.scrollIntoView({ block: 'start' });
+  });
 })();
 </script>
 
