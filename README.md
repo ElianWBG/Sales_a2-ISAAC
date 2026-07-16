@@ -1,7 +1,7 @@
 # 🧾 Sistema de Ventas, Compras y Créditos (Sales_A2)
 
 Aplicación web desarrollada en **Django** para la gestión integral de un sistema de ventas y compras con crédito. Permite administrar marcas, grupos de productos, proveedores, productos, clientes, facturas y compras, con **IVA configurable**, **ventas y compras a crédito con cuotas mensuales**, **seguridad basada en roles y permisos granulares**, búsqueda avanzada, exportación a PDF/Excel, gestión de imágenes de productos y selección dinámica de columnas visibles en los listados.
-
+a
 > **Proyecto académico** — Ingeniería de Software, Universidad Estatal de Milagro (UNEMI)
 >
 > **Participantes:** Isaac Silva, Marcos Robinson  
