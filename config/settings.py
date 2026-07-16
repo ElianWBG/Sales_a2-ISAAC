@@ -182,3 +182,10 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 PAYPAL_CLIENT_ID = config('PAYPAL_CLIENT_ID', default='')
 PAYPAL_CLIENT_SECRET = config('PAYPAL_CLIENT_SECRET', default='')
 PAYPAL_MODE = config('PAYPAL_MODE', default='sandbox')  # 'sandbox' o 'live'
+
+# Microservicio SRI — dejar SRI_MICRO_URL vacío para desactivar
+SRI_MICRO_URL     = config('SRI_MICRO_URL', default='')
+SRI_MICRO_API_KEY = config('SRI_MICRO_API_KEY', default='')
+SRI_MICRO_TIMEOUT = config('SRI_MICRO_TIMEOUT', default=30, cast=int)
+SRI_STORE_NAME    = config('SRI_STORE_NAME', default='')
+SRI_LOGO_URL      = config('SRI_LOGO_URL', default='')

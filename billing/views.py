@@ -945,6 +945,8 @@ def invoice_create(request):
                         invoice.saldo = 0
                         invoice.estado = 'PAGADA'
                         invoice.save()
+                        from shared.sri_client import emitir_factura_sri
+                        emitir_factura_sri(invoice)
             except ValidationError as e:
                 for msg in e.messages:
                     messages.error(request, msg)
@@ -1103,6 +1105,9 @@ def invoice_paypal_capture_order(request, pk):
     invoice.estado = 'PAGADA'
     invoice.saldo = 0
     invoice.save()
+
+    from shared.sri_client import emitir_factura_sri
+    emitir_factura_sri(invoice)
 
     # El pago ya quedó confirmado y guardado arriba -- si el correo falla
     # (SMTP caído, etc.) no debe tumbar esta respuesta con un 500, el pago
