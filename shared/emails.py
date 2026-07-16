@@ -7,8 +7,12 @@ mensaje suelto en cada view. Así hay un solo lugar que sabe "cómo se ve"
 cada tipo de correo del sistema.
 """
 
+import logging
+
 from django.conf import settings
 from django.core.mail import EmailMessage, send_mail
+
+logger = logging.getLogger(__name__)
 
 
 def send_welcome_email_with_temp_password(user, temp_password):
@@ -30,12 +34,16 @@ def send_welcome_email_with_temp_password(user, temp_password):
         f'la primera vez que inicies sesión.\n\n'
         f'Si no esperabas este correo, contacta al administrador del sistema.'
     )
-    sent = send_mail(
-        subject, message,
-        settings.DEFAULT_FROM_EMAIL, [user.email],
-        fail_silently=True,
-    )
-    return bool(sent)
+    try:
+        sent = send_mail(
+            subject, message,
+            settings.DEFAULT_FROM_EMAIL, [user.email],
+            fail_silently=False,
+        )
+        return bool(sent)
+    except Exception:
+        logger.exception('Error enviando email de bienvenida a %s', user.email)
+        return False
 
 
 def send_invoice_email(invoice, pdf_bytes):
@@ -62,7 +70,11 @@ def send_invoice_email(invoice, pdf_bytes):
         to=[customer_email],
     )
     email.attach(f'factura_{invoice.id}.pdf', pdf_bytes, 'application/pdf')
-    return bool(email.send(fail_silently=True))
+    try:
+        return bool(email.send(fail_silently=False))
+    except Exception:
+        logger.exception('Error enviando email para %s a %s', subject, email.to)
+        return False
 
 
 def send_purchase_email(purchase, pdf_bytes):
@@ -89,4 +101,8 @@ def send_purchase_email(purchase, pdf_bytes):
         to=[supplier_email],
     )
     email.attach(f'compra_{purchase.id}.pdf', pdf_bytes, 'application/pdf')
-    return bool(email.send(fail_silently=True))
+    try:
+        return bool(email.send(fail_silently=False))
+    except Exception:
+        logger.exception('Error enviando email para %s a %s', subject, email.to)
+        return False
