@@ -969,28 +969,18 @@ def invoice_create(request):
             # la respuesta con un 500 -- el usuario tiene que ver un mensaje
             # claro, no una pantalla de error, sobre una factura que sí se creó.
             pdf_bytes = generar_pdf_factura(invoice)
-            try:
-                enviado = send_invoice_email(invoice, pdf_bytes)
-            except Exception:
-                logger.exception('Fallo al enviar por correo la factura #%s', invoice.id)
-                enviado = None  # distinto de False: "sin correo" vs "falló el envío"
-
-            if enviado:
-                invoice.enviado_email = True
-                invoice.fecha_envio_email = timezone.now()
-                invoice.save(update_fields=['enviado_email', 'fecha_envio_email'])
-
-            if enviado:
+            if invoice.customer.email:
+                import threading
+                def _enviar():
+                    try:
+                        send_invoice_email(invoice, pdf_bytes)
+                    except Exception:
+                        logger.exception('Fallo al enviar por correo la factura #%s', invoice.id)
+                threading.Thread(target=_enviar, daemon=True).start()
                 messages.success(
                     request,
                     f'Factura #{invoice.id} creada! Total: ${invoice.total}. '
-                    f'Se envió por correo a {invoice.customer.email}.'
-                )
-            elif enviado is None:
-                messages.warning(
-                    request,
-                    f'Factura #{invoice.id} creada! Total: ${invoice.total}. '
-                    f'No se pudo enviar el correo en este momento; intenta reenviarla más tarde.'
+                    f'Se enviará por correo a {invoice.customer.email}.'
                 )
             else:
                 messages.warning(
