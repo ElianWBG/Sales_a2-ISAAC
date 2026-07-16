@@ -10,7 +10,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import urllib.parse
 from pathlib import Path
+
 from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -26,7 +28,8 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-CAMBIA-ESTO-EN-TU-.en
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()]) or ['*']
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='https://*.railway.app', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
 
 
 # Application definition
@@ -50,6 +53,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -82,16 +86,30 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5432'),
+_db_url = config('DATABASE_URL', default='')
+if _db_url:
+    _u = urllib.parse.urlparse(_db_url)
+    DATABASES = {
+        'default': {
+            'ENGINE':   'django.db.backends.postgresql',
+            'NAME':     _u.path.lstrip('/'),
+            'USER':     _u.username or '',
+            'PASSWORD': _u.password or '',
+            'HOST':     _u.hostname or 'localhost',
+            'PORT':     str(_u.port or 5432),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE':   'django.db.backends.postgresql',
+            'NAME':     config('DB_NAME'),
+            'USER':     config('DB_USER'),
+            'PASSWORD': config('DB_PASSWORD'),
+            'HOST':     config('DB_HOST', default='localhost'),
+            'PORT':     config('DB_PORT', default='5432'),
+        }
+    }
 
 
 # Password validation
@@ -129,6 +147,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
