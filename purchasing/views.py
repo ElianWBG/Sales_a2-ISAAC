@@ -1,4 +1,5 @@
 import json
+import logging
 from decimal import Decimal
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -22,6 +23,8 @@ from .models import Purchase, PurchaseDetail
 from .forms import PurchaseForm, PurchaseDetailFormSet, PurchaseSearchForm
 from .purchase_pdf import generar_pdf_compra
 from shared.emails import send_purchase_email
+
+logger = logging.getLogger(__name__)
 
 
 # ── Columnas disponibles para Compras ──
@@ -105,21 +108,27 @@ def purchase_create(request):
         form = PurchaseForm(request.POST)
         formset = PurchaseDetailFormSet(request.POST)
         if form.is_valid() and formset.is_valid():
-            purchase = form.save()
-            formset.instance = purchase
-            formset.save()
-
-            # Reto 10.1 — la compra SUMA stock
-            for d in purchase.details.all():
-                Product.objects.filter(pk=d.product_id).update(stock=F('stock') + d.quantity)
-
-            # Totales
-            subtotal = sum(d.subtotal for d in purchase.details.all())
-            purchase.subtotal = subtotal
-            purchase.tax = subtotal * config.iva_porcentaje / Decimal('100')
-            purchase.total = purchase.subtotal + purchase.tax
-
+            # Todo el flujo de creación (cabecera + líneas + stock + totales
+            # + cuotas) va en UN solo atomic(): antes solo la parte de
+            # estado/saldo/cuotas estaba protegida, así que si generar_cuotas
+            # fallaba a mitad de camino, la Purchase, sus PurchaseDetail y el
+            # stock ya incrementado quedaban guardados de todos modos --
+            # huérfanos, sin cuotas. Mismo patrón que invoice_create.
             with transaction.atomic():
+                purchase = form.save()
+                formset.instance = purchase
+                formset.save()
+
+                # Reto 10.1 — la compra SUMA stock
+                for d in purchase.details.all():
+                    Product.objects.filter(pk=d.product_id).update(stock=F('stock') + d.quantity)
+
+                # Totales
+                subtotal = sum(d.subtotal for d in purchase.details.all())
+                purchase.subtotal = subtotal
+                purchase.tax = subtotal * config.iva_porcentaje / Decimal('100')
+                purchase.total = purchase.subtotal + purchase.tax
+
                 if purchase.tipo_pago == 'CONTADO':
                     purchase.saldo = 0
                     purchase.estado = 'PAGADA'
@@ -132,15 +141,30 @@ def purchase_create(request):
                     from creditos_compras.services import generar_cuotas
                     generar_cuotas(purchase, form.cleaned_data['num_cuotas'])
 
-            # Correo con la orden de compra en PDF al proveedor (si tiene correo registrado)
+            # Correo con la orden de compra en PDF al proveedor (si tiene correo
+            # registrado). Try/except SEPARADO de la transacción de guardado
+            # de arriba: la compra ya quedó guardada, así que si el envío
+            # falla (SMTP caído, etc.) eso no debe tumbar la respuesta con un
+            # 500 -- el usuario tiene que ver un mensaje claro, no una
+            # pantalla de error, sobre una compra que sí se creó.
             pdf_bytes = generar_pdf_compra(purchase)
-            enviado = send_purchase_email(purchase, pdf_bytes)
+            try:
+                enviado = send_purchase_email(purchase, pdf_bytes)
+            except Exception:
+                logger.exception('Fallo al enviar por correo la compra #%s', purchase.id)
+                enviado = None  # distinto de False: "sin correo" vs "falló el envío"
 
             if enviado:
                 messages.success(
                     request,
                     f'Compra #{purchase.id} creada! Total: ${purchase.total}. '
                     f'Se envió por correo a {purchase.supplier.email}.'
+                )
+            elif enviado is None:
+                messages.warning(
+                    request,
+                    f'Compra #{purchase.id} creada! Total: ${purchase.total}. '
+                    f'No se pudo enviar el correo en este momento; intenta reenviarla más tarde.'
                 )
             else:
                 messages.warning(
@@ -188,7 +212,16 @@ def purchase_delete(request, pk):
     if request.method == 'POST':
         purchase_id = purchase.id
         try:
-            purchase.delete()
+            with transaction.atomic():
+                # purchase_create suma stock al crear (ver más abajo); si la
+                # compra se elimina, hay que devolverlo (restarlo). Las
+                # CREDITO con cuotas nunca llegan hasta acá: CuotaCompra.compra
+                # es PROTECT, así que delete() ya las bloquea antes de este
+                # bucle -- si eso llegara a pasar, el atomic() revierte esta
+                # resta también, no queda stock descontado dos veces.
+                for d in purchase.details.select_related('product'):
+                    Product.objects.filter(pk=d.product_id).update(stock=F('stock') - d.quantity)
+                purchase.delete()
             messages.success(request, f'Compra #{purchase_id} eliminada!')
         except ProtectedError:
             messages.error(request, 'No se puede eliminar la compra porque tiene cuotas de crédito asociadas.')

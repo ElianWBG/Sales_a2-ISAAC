@@ -16,7 +16,7 @@
         <p><strong>Factura #:</strong> {{ invoice.id }}</p>
         <p>
           <strong>Tipo de pago:</strong> {{ invoice.tipo_pago }}
-          <span class="badge {% if invoice.estado == 'PAGADA' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ invoice.estado }}</span>
+          <span class="badge {% if invoice.estado == 'PAGADA' %}bg-success{% elif invoice.estado == 'CANCELADA' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">{{ invoice.estado }}</span>
         </p>
         {% if invoice.tipo_pago == 'CONTADO' and invoice.metodo_pago %}
         <p><strong>Método de pago:</strong> {{ invoice.get_metodo_pago_display }}</p>
@@ -31,6 +31,15 @@
       <form id="paypal-csrf-form">{% csrf_token %}</form>
       <div id="paypal-button-container" style="max-width: 300px;"></div>
       <div id="paypal-error" class="text-danger small mt-2" style="display:none;"></div>
+      {% if perms.billing.cancelar_invoice_paypal %}
+      <hr>
+      <p class="mb-2 text-muted small">¿El cliente ya no va a completar este pago?</p>
+      <form method="post" action="{% url 'billing:invoice_cancel_paypal' invoice.pk %}"
+            onsubmit="return confirm('¿Cancelar esta factura? Se restaurará el stock reservado.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger btn-sm">Cancelar factura pendiente</button>
+      </form>
+      {% endif %}
     </div>
     {% endif %}
     <table class="table table-bordered">

@@ -51,6 +51,15 @@ class PurchaseDetailForm(forms.ModelForm):
             'unit_cost': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': 0}),
         }
 
+    def clean_unit_cost(self):
+        # El 'min': 0 del widget es solo HTML -- mismo patrón que
+        # ProductForm.clean_unit_price (catálogo) para que un POST
+        # manipulado no pueda colar un costo en cero o negativo.
+        cost = self.cleaned_data.get('unit_cost')
+        if cost is not None and cost <= 0:
+            raise forms.ValidationError('El costo unitario debe ser mayor que cero.')
+        return cost
+
 
 PurchaseDetailFormSet = inlineformset_factory(
     Purchase,          # Modelo padre

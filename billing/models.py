@@ -1,5 +1,5 @@
 from django.db import models
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from shared.validators import validate_cedula_ec
 
 
@@ -147,7 +147,7 @@ class Invoice(models.Model):
     saldo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     estado = models.CharField(
         max_length=15,
-        choices=[("PENDIENTE", "PENDIENTE"), ("PAGADA", "PAGADA")],
+        choices=[("PENDIENTE", "PENDIENTE"), ("PAGADA", "PAGADA"), ("CANCELADA", "CANCELADA")],
         default="PENDIENTE",
     )
 
@@ -180,6 +180,7 @@ class Invoice(models.Model):
             ('exportar_pdf_invoice', 'Puede exportar Facturas a PDF'),
             ('exportar_excel_invoice', 'Puede exportar Facturas a Excel'),
             ('imprimir_factura', 'Puede imprimir el documento de la factura'),
+            ('cancelar_invoice_paypal', 'Puede cancelar facturas PayPal pendientes'),
         ]
     def __str__(self): return f'Invoice #{self.id} - {self.customer}'
 
@@ -188,7 +189,8 @@ class ConfiguracionSistema(models.Model):
     iva_porcentaje = models.DecimalField(
         max_digits=5, decimal_places=2, default=15.00,
         verbose_name='IVA (%)',
-        help_text='Porcentaje de IVA aplicado a facturas y compras. Ej: 15.00 = 15%.'
+        help_text='Porcentaje de IVA aplicado a facturas y compras. Ej: 15.00 = 15%.',
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
     actualizado_en = models.DateTimeField(auto_now=True)
 

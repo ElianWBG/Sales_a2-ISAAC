@@ -1,4 +1,5 @@
 import json
+import logging
 from django.conf import settings
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponse
@@ -36,6 +37,8 @@ from django.db.models import ProtectedError
 from django.core.exceptions import ValidationError
 from django.contrib import messages
 from django.shortcuts import redirect
+
+logger = logging.getLogger(__name__)
 
 # === HOME (Página principal) ===
 @login_required
@@ -956,9 +959,19 @@ def invoice_create(request):
                 )
                 return redirect('billing:invoice_detail', pk=invoice.pk)
 
-            # Correo con la factura en PDF al cliente (si tiene correo registrado)
+            # Correo con la factura en PDF al cliente (si tiene correo registrado).
+            # Try/except SEPARADO de la transacción de guardado de arriba: la
+            # factura ya quedó guardada en la BD en ese punto, así que si el
+            # envío falla (SMTP caído, credenciales, etc.) eso no debe tumbar
+            # la respuesta con un 500 -- el usuario tiene que ver un mensaje
+            # claro, no una pantalla de error, sobre una factura que sí se creó.
             pdf_bytes = generar_pdf_factura(invoice)
-            enviado = send_invoice_email(invoice, pdf_bytes)
+            try:
+                enviado = send_invoice_email(invoice, pdf_bytes)
+            except Exception:
+                logger.exception('Fallo al enviar por correo la factura #%s', invoice.id)
+                enviado = None  # distinto de False: "sin correo" vs "falló el envío"
+
             if enviado:
                 invoice.enviado_email = True
                 invoice.fecha_envio_email = timezone.now()
@@ -969,6 +982,12 @@ def invoice_create(request):
                     request,
                     f'Factura #{invoice.id} creada! Total: ${invoice.total}. '
                     f'Se envió por correo a {invoice.customer.email}.'
+                )
+            elif enviado is None:
+                messages.warning(
+                    request,
+                    f'Factura #{invoice.id} creada! Total: ${invoice.total}. '
+                    f'No se pudo enviar el correo en este momento; intenta reenviarla más tarde.'
                 )
             else:
                 messages.warning(
@@ -992,6 +1011,15 @@ class InvoiceDeleteView(SuccessUrlPreservePageMixin, ProtectedDeleteMixin, Login
     protected_message = 'No se puede eliminar la factura porque tiene cuotas de crédito asociadas.'
     permission_required = 'billing.delete_invoice'
     permission_redirect_url = '/invoices/'
+
+    def before_delete(self, invoice):
+        # invoice_create descuenta stock al crear (ver más abajo); si la
+        # factura se elimina, hay que devolverlo. Las CREDITO con cuotas
+        # nunca llegan hasta acá: CuotaVenta.factura es PROTECT, así que
+        # delete() ya las bloquea antes de este hook -- no hay riesgo de
+        # restaurar stock dos veces sobre la misma factura.
+        for d in invoice.details.select_related('product'):
+            Product.objects.filter(pk=d.product_id).update(stock=F('stock') + d.quantity)
 
 
 @login_required
@@ -1075,11 +1103,52 @@ def invoice_paypal_capture_order(request, pk):
     invoice.saldo = 0
     invoice.save()
 
+    # El pago ya quedó confirmado y guardado arriba -- si el correo falla
+    # (SMTP caído, etc.) no debe tumbar esta respuesta con un 500, el pago
+    # sigue siendo válido de todos modos.
     pdf_bytes = generar_pdf_factura(invoice)
-    enviado = send_invoice_email(invoice, pdf_bytes)
+    try:
+        enviado = send_invoice_email(invoice, pdf_bytes)
+    except Exception:
+        logger.exception('Fallo al enviar por correo la factura #%s tras confirmar PayPal', invoice.id)
+        enviado = None
     if enviado:
         invoice.enviado_email = True
         invoice.fecha_envio_email = timezone.now()
         invoice.save(update_fields=['enviado_email', 'fecha_envio_email'])
 
     return JsonResponse({'status': 'COMPLETED'})
+
+
+@login_required
+@permission_required_with_message('billing.cancelar_invoice_paypal', redirect_url='/invoices/')
+def invoice_cancel_paypal(request, pk):
+    """
+    Cancela una factura CONTADO+PayPal que quedó PENDIENTE porque el
+    cliente nunca completó el pago en la ventana de PayPal: restaura el
+    stock que invoice_create ya había descontado al crearla y marca la
+    factura CANCELADA. Solo aplica a facturas PayPal todavía pendientes --
+    una ya PAGADA no puede cancelarse por este camino (invoice_paypal_
+    capture_order es el único lugar que las marca PAGADA).
+    """
+    invoice = get_object_or_404(Invoice, pk=pk)
+
+    if invoice.tipo_pago != 'CONTADO' or invoice.metodo_pago != 'PAYPAL' or invoice.estado != 'PENDIENTE':
+        messages.error(
+            request,
+            'Esta factura no se puede cancelar por este camino (solo aplica a '
+            'facturas de contado con PayPal que sigan pendientes de pago).'
+        )
+        return redirect('billing:invoice_detail', pk=invoice.pk)
+
+    if request.method != 'POST':
+        return redirect('billing:invoice_detail', pk=invoice.pk)
+
+    with transaction.atomic():
+        for d in invoice.details.select_related('product'):
+            Product.objects.filter(pk=d.product_id).update(stock=F('stock') + d.quantity)
+        invoice.estado = 'CANCELADA'
+        invoice.save(update_fields=['estado'])
+
+    messages.success(request, f'Factura #{invoice.id} cancelada. El stock reservado fue restaurado.')
+    return redirect('billing:invoice_detail', pk=invoice.pk)

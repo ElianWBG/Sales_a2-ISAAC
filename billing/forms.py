@@ -173,6 +173,17 @@ class ConfiguracionForm(forms.ModelForm):
         model = ConfiguracionSistema
         fields = ['iva_porcentaje']
 
+    def clean_iva_porcentaje(self):
+        # Los MinValueValidator(0)/MaxValueValidator(100) del modelo ya
+        # cubren esto vía full_clean(), pero se declara explícito acá
+        # también (mismo patrón que ProductForm.clean_unit_price) para que
+        # el mensaje de error sea el mismo estilo amigable del resto del
+        # formulario, sin depender del texto genérico de los validators.
+        iva = self.cleaned_data.get('iva_porcentaje')
+        if iva is not None and (iva < 0 or iva > 100):
+            raise forms.ValidationError('El IVA debe estar entre 0% y 100%.')
+        return iva
+
 
 class InvoiceForm(forms.ModelForm):
     num_cuotas = forms.IntegerField(
@@ -237,18 +248,44 @@ class BaseInvoiceDetailFormSet(BaseInlineFormSet):
             raise forms.ValidationError(errores)
 
 
+class InvoiceDetailForm(forms.ModelForm):
+    """
+    InvoiceDetail.quantity es un IntegerField normal (ni siquiera
+    PositiveIntegerField): sin declarar el campo explícito acá, Django no
+    rechaza cantidades negativas en el backend -- el 'min': 1 del widget
+    es nada más del lado del cliente, y un POST manipulado lo salta sin
+    problema. Mismo patrón que PurchaseDetailForm (purchasing/forms.py).
+    """
+    quantity = forms.IntegerField(
+        min_value=1, label='Cantidad',
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'value': 1}),
+    )
+
+    class Meta:
+        model = InvoiceDetail
+        fields = ['product', 'quantity', 'unit_price']
+        widgets = {
+            'product': forms.Select(attrs={'class': 'form-select'}),
+            'unit_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': 0}),
+        }
+
+    def clean_unit_price(self):
+        # El 'min': 0 del widget es solo HTML -- mismo patrón que
+        # ProductForm.clean_unit_price (catálogo) para que un POST
+        # manipulado no pueda colar un precio en cero o negativo.
+        price = self.cleaned_data.get('unit_price')
+        if price is not None and price <= 0:
+            raise forms.ValidationError('El precio unitario debe ser mayor que cero.')
+        return price
+
+
 InvoiceDetailFormSet = forms.inlineformset_factory(
     Invoice,
     InvoiceDetail,
-    fields=['product', 'quantity', 'unit_price'],
+    form=InvoiceDetailForm,
     formset=BaseInvoiceDetailFormSet,
     extra=1,
     can_delete=True,
-    widgets={
-        'product': forms.Select(attrs={'class': 'form-select'}),
-        'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'value': 1}),
-        'unit_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': 0}),
-    },
 )
 
 # ── Formularios de búsqueda por módulo ────────────────────────────────────────

@@ -89,19 +89,32 @@ def registrar_pago(request, cuota_pk):
         return redirect('creditos_compras:cuotas_compra', pk=cuota.compra_id)
 
     if request.method == 'POST':
-        form = PagoCuotaCompraForm(request.POST, cuota=cuota)
-        if form.is_valid():
-            with transaction.atomic():
+        # select_for_update() DENTRO de la transacción, ANTES de armar/validar
+        # el form: PagoCuotaCompraForm.clean_valor compara `valor` contra
+        # `cuota.saldo`, así que ese saldo tiene que venir de la fila ya
+        # bloqueada -- si se bloqueara después de validar, dos pagos
+        # concurrentes ya habrían leído el mismo saldo stale y ambos
+        # pasarían la validación (mismo patrón que select_for_update()
+        # sobre Product en invoice_create).
+        with transaction.atomic():
+            cuota_locked = CuotaCompra.objects.select_for_update().get(pk=cuota.pk)
+
+            if cuota_locked.estado == 'PAGADA':
+                messages.error(request, 'Esta cuota ya está pagada por completo, no admite más pagos.')
+                return redirect('creditos_compras:cuotas_compra', pk=cuota_locked.compra_id)
+
+            form = PagoCuotaCompraForm(request.POST, cuota=cuota_locked)
+            if form.is_valid():
                 pago = form.save(commit=False)
-                pago.cuota = cuota
+                pago.cuota = cuota_locked
                 pago.save()
-                recalcular_cuota(cuota)
-                recalcular_compra(cuota.compra)
-            messages.success(
-                request,
-                f'Pago de ${pago.valor} registrado en la cuota {cuota.numero} de la compra #{cuota.compra_id}.'
-            )
-            return redirect('creditos_compras:cuotas_compra', pk=cuota.compra_id)
+                recalcular_cuota(cuota_locked)
+                recalcular_compra(cuota_locked.compra)
+                messages.success(
+                    request,
+                    f'Pago de ${pago.valor} registrado en la cuota {cuota_locked.numero} de la compra #{cuota_locked.compra_id}.'
+                )
+                return redirect('creditos_compras:cuotas_compra', pk=cuota_locked.compra_id)
     else:
         form = PagoCuotaCompraForm(cuota=cuota, initial={'fecha': timezone.localdate()})
 
@@ -162,8 +175,18 @@ def pagar_cuotas_lote(request, purchase_pk):
 
     try:
         with transaction.atomic():
+            # select_for_update() DENTRO de la transacción, releyendo las
+            # cuotas en vez de reusar la lista de arriba (fetched antes del
+            # atomic, sin lock): acá se lee `cuota.saldo` directo para
+            # pagarlo completo, así que si esa lectura es stale, dos pagos
+            # en lote concurrentes sobre la misma cuota podrían generar dos
+            # PagoCuotaCompra por el total (mismo problema que en
+            # registrar_pago, incluso sin pasar por el form).
+            cuotas_locked = list(
+                CuotaCompra.objects.select_for_update().filter(pk__in=encontrados)
+            )
             total_pagado = Decimal('0')
-            for cuota in cuotas:
+            for cuota in cuotas_locked:
                 if cuota.estado == 'PAGADA':
                     raise ValueError(f'la cuota {cuota.numero} ya está pagada por completo.')
                 valor = cuota.saldo

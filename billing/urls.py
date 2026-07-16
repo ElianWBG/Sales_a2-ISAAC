@@ -58,5 +58,6 @@ urlpatterns = [
     # PayPal (factura de contado)
     path('invoices/<int:pk>/paypal/create-order/', views.invoice_paypal_create_order, name='invoice_paypal_create_order'),
     path('invoices/<int:pk>/paypal/capture-order/', views.invoice_paypal_capture_order, name='invoice_paypal_capture_order'),
+    path('invoices/<int:pk>/cancelar-paypal/', views.invoice_cancel_paypal, name='invoice_cancel_paypal'),
 
 ]

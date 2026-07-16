@@ -91,29 +91,42 @@ def registrar_pago(request, cuota_pk):
         return redirect('creditos_ventas:cuotas_factura', pk=cuota.factura_id)
 
     if request.method == 'POST':
-        form = PagoCuotaVentaForm(request.POST, cuota=cuota)
-        if form.is_valid():
-            pago = form.save(commit=False)
-            pago.cuota = cuota
+        # select_for_update() DENTRO de la transacción, ANTES de armar/validar
+        # el form: PagoCuotaVentaForm.clean_valor compara `valor` contra
+        # `cuota.saldo`, así que ese saldo tiene que venir de la fila ya
+        # bloqueada -- si se bloqueara después de validar, dos pagos
+        # concurrentes ya habrían leído el mismo saldo stale y ambos
+        # pasarían la validación (mismo patrón que select_for_update()
+        # sobre Product en invoice_create).
+        with transaction.atomic():
+            cuota_locked = CuotaVenta.objects.select_for_update().get(pk=cuota.pk)
 
-            if pago.metodo_pago == 'PAYPAL':
-                # Igual que con la factura de contado: NO se confirma el
-                # pago (ni se recalcula saldo) todavía. Se guarda el
-                # registro para tener un pk que usar en los endpoints AJAX
-                # de create-order/capture-order, y recién se recalcula
-                # cuando PayPal confirme la captura.
-                pago.save()
-                return redirect('creditos_ventas:pago_paypal_checkout', pago_pk=pago.pk)
+            if cuota_locked.estado == 'PAGADA':
+                messages.error(request, 'Esta cuota ya está pagada por completo, no admite más pagos.')
+                return redirect('creditos_ventas:cuotas_factura', pk=cuota_locked.factura_id)
 
-            with transaction.atomic():
+            form = PagoCuotaVentaForm(request.POST, cuota=cuota_locked)
+            if form.is_valid():
+                pago = form.save(commit=False)
+                pago.cuota = cuota_locked
+
+                if pago.metodo_pago == 'PAYPAL':
+                    # Igual que con la factura de contado: NO se confirma el
+                    # pago (ni se recalcula saldo) todavía. Se guarda el
+                    # registro para tener un pk que usar en los endpoints AJAX
+                    # de create-order/capture-order, y recién se recalcula
+                    # cuando PayPal confirme la captura.
+                    pago.save()
+                    return redirect('creditos_ventas:pago_paypal_checkout', pago_pk=pago.pk)
+
                 pago.save()
-                recalcular_cuota(cuota)
-                recalcular_factura(cuota.factura)
-            messages.success(
-                request,
-                f'Pago de ${pago.valor} registrado en la cuota {cuota.numero} de la factura #{cuota.factura_id}.'
-            )
-            return redirect('creditos_ventas:cuotas_factura', pk=cuota.factura_id)
+                recalcular_cuota(cuota_locked)
+                recalcular_factura(cuota_locked.factura)
+                messages.success(
+                    request,
+                    f'Pago de ${pago.valor} registrado en la cuota {cuota_locked.numero} de la factura #{cuota_locked.factura_id}.'
+                )
+                return redirect('creditos_ventas:cuotas_factura', pk=cuota_locked.factura_id)
     else:
         form = PagoCuotaVentaForm(cuota=cuota, initial={'fecha': timezone.localdate()})
 
@@ -240,8 +253,18 @@ def pagar_cuotas_lote(request, invoice_pk):
 
     try:
         with transaction.atomic():
+            # select_for_update() DENTRO de la transacción, releyendo las
+            # cuotas en vez de reusar la lista de arriba (fetched antes del
+            # atomic, sin lock): acá se lee `cuota.saldo` directo para
+            # pagarlo completo, así que si esa lectura es stale, dos pagos
+            # en lote concurrentes sobre la misma cuota podrían generar dos
+            # PagoCuotaVenta por el total (mismo problema que en
+            # registrar_pago, incluso sin pasar por el form).
+            cuotas_locked = list(
+                CuotaVenta.objects.select_for_update().filter(pk__in=encontrados)
+            )
             total_pagado = Decimal('0')
-            for cuota in cuotas:
+            for cuota in cuotas_locked:
                 if cuota.estado == 'PAGADA':
                     raise ValueError(f'la cuota {cuota.numero} ya está pagada por completo.')
                 valor = cuota.saldo

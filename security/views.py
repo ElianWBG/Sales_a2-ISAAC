@@ -13,7 +13,7 @@ from shared.mixins import GroupRequiredMixin
 from shared.emails import send_welcome_email_with_temp_password
 from .forms import CambiarPasswordForm, UserUpdateForm, GroupForm, PermissionForm, AdminUserCreateForm
 from .models import PerfilUsuario
-from .utils import generar_username
+from .utils import generar_username, es_ultimo_administrador_activo
 
 
 # === MIXIN BASE: SOLO ADMINISTRADOR ===
@@ -102,11 +102,36 @@ class UserUpdateView(AdminOnlyMixin, UpdateView):
     template_name = 'security/user_form.html'
     success_url = reverse_lazy('security:user_list')
 
+    def form_valid(self, form):
+        # self.object ya fue mutado en memoria por el _post_clean() del
+        # ModelForm (is_active, etc. ya reflejan el valor NUEVO aunque
+        # todavía no se guardó en la BD) -- se necesita una lectura fresca
+        # para comparar el estado ANTES de esta edición.
+        original = User.objects.get(pk=self.object.pk)
+        if original.groups.filter(name='Administrador').exists():
+            cambia_de_rol = form.cleaned_data['role'].name != 'Administrador'
+            se_desactiva = not form.cleaned_data['is_active']
+            if (cambia_de_rol or se_desactiva) and es_ultimo_administrador_activo(original):
+                messages.error(
+                    self.request,
+                    'No puedes quitarle el rol de Administrador ni desactivar '
+                    'al único Administrador activo del sistema.'
+                )
+                return redirect('security:user_update', pk=original.pk)
+        return super().form_valid(form)
+
 
 class UserDeleteView(AdminOnlyMixin, DeleteView):
     model = User
     template_name = 'security/confirm_delete.html'
     success_url = reverse_lazy('security:user_list')
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if self.object.groups.filter(name='Administrador').exists() and es_ultimo_administrador_activo(self.object):
+            messages.error(request, 'No puedes eliminar al único Administrador activo del sistema.')
+            return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
 
 
 # === ROLES / GROUP (solo Administrador) ===
@@ -135,6 +160,17 @@ class GroupDeleteView(AdminOnlyMixin, DeleteView):
     model = Group
     template_name = 'security/confirm_delete.html'
     success_url = reverse_lazy('security:group_list')
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        if self.object.name == 'Administrador':
+            messages.error(
+                request,
+                'No puedes eliminar el rol "Administrador": el sistema siempre '
+                'debe tener este rol disponible, sin importar cuántos usuarios tenga.'
+            )
+            return redirect(self.success_url)
+        return super().post(request, *args, **kwargs)
 
 
 # === PERMISOS / PERMISSION (solo Administrador) ===
@@ -239,10 +275,11 @@ ACTION_DISPLAY = {
     'exportar_excel': 'Excel',
     'view_purchase_report': 'Reporte',
     'imprimir': 'Imprimir',
+    'cancelar_invoice_paypal': 'Cancelar PayPal',
 }
 ACTION_ORDER = [
     'view', 'add', 'change', 'delete', 'exportar_pdf', 'exportar_excel',
-    'view_purchase_report', 'imprimir',
+    'view_purchase_report', 'imprimir', 'cancelar_invoice_paypal',
 ]
 
 # Prefijos de acción de más de un token (a diferencia de view_x/add_x/etc.,
@@ -264,11 +301,14 @@ _COMPOUND_ACTION_PREFIXES = ('exportar_excel_', 'exportar_pdf_')
 #     igual, aunque el primer token "imprimir" no colisiona hoy con
 #     ningún otro ACTION_DISPLAY existente, para que quede explícito y
 #     no dependa de que la coincidencia siga siendo casual a futuro.
+#   - cancelar_invoice_paypal: único en Invoice, sin default asignado a
+#     ningún rol (acción nueva, no un fix de algo que ya existía).
 _EXACT_CODENAME_ACTIONS = {
     'view_purchase_report': 'view_purchase_report',
     'imprimir_factura': 'imprimir',
     'imprimir_orden_compra': 'imprimir',
     'imprimir_plan_pagos': 'imprimir',
+    'cancelar_invoice_paypal': 'cancelar_invoice_paypal',
 }
 
 

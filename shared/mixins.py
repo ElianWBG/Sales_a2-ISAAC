@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.shortcuts import redirect
+from django.db import transaction
 from django.db.models import ProtectedError
 from django.contrib import messages
 from django.shortcuts import redirect
@@ -73,10 +74,23 @@ class ProtectedDeleteMixin:
     protected_message = 'No se puede eliminar porque tiene registros asociados.'
     success_message = 'Eliminado correctamente.'
 
+    def before_delete(self, obj):
+        """
+        Hook para que una subclase haga trabajo extra (ej. restaurar stock)
+        DENTRO de la misma transacción que el delete(). No hace nada por
+        defecto. Si delete() termina lanzando ProtectedError, el atomic()
+        de post() revierte también lo que este hook haya hecho -- así no
+        queda, por ejemplo, stock "restaurado" de un registro que en
+        realidad no se llegó a borrar.
+        """
+        pass
+
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         try:
-            self.object.delete()
+            with transaction.atomic():
+                self.before_delete(self.object)
+                self.object.delete()
             messages.success(request, self.success_message)
         except ProtectedError:
             messages.error(request, self.protected_message)

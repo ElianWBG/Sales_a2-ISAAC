@@ -69,8 +69,14 @@
                 {% for hidden in detail_form.hidden_fields %}{{ hidden }}{% endfor %}
                 {% for error in detail_form.product.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
               </td>
-              <td>{{ detail_form.quantity }}</td>
-              <td>{{ detail_form.unit_cost }}</td>
+              <td>
+                {{ detail_form.quantity }}
+                {% for error in detail_form.quantity.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              </td>
+              <td>
+                {{ detail_form.unit_cost }}
+                {% for error in detail_form.unit_cost.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              </td>
               <td class="text-end">
                 <span class="row-subtotal fw-semibold">$0.00</span>
               </td>

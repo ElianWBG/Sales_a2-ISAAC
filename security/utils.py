@@ -44,3 +44,11 @@ def generar_username(first_name, last_name):
         username = f'{base}{sufijo}'
         sufijo += 1
     return username
+
+
+def es_ultimo_administrador_activo(user):
+    """True si `user` es el único usuario activo con rol Administrador."""
+    otros_admins = User.objects.filter(
+        groups__name='Administrador', is_active=True
+    ).exclude(pk=user.pk)
+    return not otros_admins.exists()
