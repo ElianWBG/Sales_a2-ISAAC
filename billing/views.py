@@ -894,6 +894,11 @@ def invoice_create(request):
         form = InvoiceForm(request.POST)
         formset = InvoiceDetailFormSet(request.POST)
         if form.is_valid() and formset.is_valid():
+            # None salvo que la rama CONTADO efectivo/transferencia de abajo
+            # llame a emitir_factura_sri (CREDITO y CONTADO+PayPal pendiente
+            # nunca la llaman) -- el hilo de envío de correo lo usa para
+            # decidir si hace polling del XML o no.
+            sri_result = None
             try:
                 with transaction.atomic():
                     invoice = form.save()
@@ -947,7 +952,7 @@ def invoice_create(request):
                         invoice.estado = 'PAGADA'
                         invoice.save()
                         from shared.sri_client import emitir_factura_sri
-                        emitir_factura_sri(invoice)
+                        sri_result = emitir_factura_sri(invoice)
             except ValidationError as e:
                 for msg in e.messages:
                     messages.error(request, msg)
@@ -973,8 +978,17 @@ def invoice_create(request):
             if invoice.customer.email:
                 import threading
                 def _enviar():
+                    # El polling de esperar_xml_factura_sri() puede tardar
+                    # varios segundos (SRI_POLL_INTENTOS x
+                    # SRI_POLL_INTERVALO_SEGUNDOS) -- corre acá, en el hilo
+                    # de fondo, para no bloquear la respuesta/redirect que
+                    # el usuario ya recibió.
+                    xml_bytes = None
+                    if sri_result and sri_result.get('id'):
+                        from shared.sri_client import esperar_xml_factura_sri
+                        xml_bytes = esperar_xml_factura_sri(sri_result['id'])
                     try:
-                        send_invoice_email(invoice, pdf_bytes)
+                        send_invoice_email(invoice, pdf_bytes, xml_bytes=xml_bytes)
                     except Exception:
                         logger.exception('Fallo al enviar por correo la factura #%s', invoice.id)
                 threading.Thread(target=_enviar, daemon=True).start()
@@ -1098,21 +1112,36 @@ def invoice_paypal_capture_order(request, pk):
     invoice.save()
 
     from shared.sri_client import emitir_factura_sri
-    emitir_factura_sri(invoice)
+    sri_result = emitir_factura_sri(invoice)
 
     # El pago ya quedó confirmado y guardado arriba -- si el correo falla
     # (SMTP caído, etc.) no debe tumbar esta respuesta con un 500, el pago
     # sigue siendo válido de todos modos.
+    #
+    # El envío (con su polling de esperar_xml_factura_sri(), que puede
+    # tardar varios segundos) corre en un hilo aparte: este endpoint es
+    # AJAX -- el botón de PayPal en invoice_detail.html espera esta
+    # respuesta de forma síncrona antes de recargar la página -- así que no
+    # debe quedar colgado esperando al SRI. Mismo patrón que invoice_create.
     pdf_bytes = generar_pdf_factura(invoice)
-    try:
-        enviado = send_invoice_email(invoice, pdf_bytes)
-    except Exception:
-        logger.exception('Fallo al enviar por correo la factura #%s tras confirmar PayPal', invoice.id)
-        enviado = None
-    if enviado:
-        invoice.enviado_email = True
-        invoice.fecha_envio_email = timezone.now()
-        invoice.save(update_fields=['enviado_email', 'fecha_envio_email'])
+    import threading
+    def _enviar():
+        from django.db import connection
+        from shared.sri_client import esperar_xml_factura_sri
+        xml_bytes = None
+        if sri_result and sri_result.get('id'):
+            xml_bytes = esperar_xml_factura_sri(sri_result['id'])
+        try:
+            enviado = send_invoice_email(invoice, pdf_bytes, xml_bytes=xml_bytes)
+        except Exception:
+            logger.exception('Fallo al enviar por correo la factura #%s tras confirmar PayPal', invoice.id)
+            enviado = None
+        if enviado:
+            invoice.enviado_email = True
+            invoice.fecha_envio_email = timezone.now()
+            invoice.save(update_fields=['enviado_email', 'fecha_envio_email'])
+        connection.close()
+    threading.Thread(target=_enviar, daemon=True).start()
 
     return JsonResponse({'status': 'COMPLETED'})
 

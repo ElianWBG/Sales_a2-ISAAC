@@ -190,6 +190,12 @@ SRI_MICRO_TIMEOUT = config('SRI_MICRO_TIMEOUT', default=30, cast=int)
 SRI_STORE_NAME    = config('SRI_STORE_NAME', default='')
 SRI_LOGO_URL      = config('SRI_LOGO_URL', default='')
 
+# Polling de shared.sri_client.esperar_xml_factura_sri() esperando el XML
+# autorizado -- valores de arranque razonables (1.5s x 6 = ~9s de ventana
+# máxima); ajustar según lo que se observe en producción sin tocar código.
+SRI_POLL_INTENTOS             = config('SRI_POLL_INTENTOS', default=6, cast=int)
+SRI_POLL_INTERVALO_SEGUNDOS   = config('SRI_POLL_INTERVALO_SEGUNDOS', default=1.5, cast=float)
+
 # DEPRECADO -- la identidad tributaria del negocio se movió a
 # ConfiguracionSistema (editable desde Configuración del Sistema en la UI).
 # Nada en el código lee esto ya (billing/invoice_pdf.py usa

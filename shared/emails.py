@@ -88,9 +88,11 @@ def send_welcome_email_with_temp_password(user, temp_password, request=None):
         return False
 
 
-def send_invoice_email(invoice, pdf_bytes):
+def send_invoice_email(invoice, pdf_bytes, xml_bytes=None):
     """
-    Envía la factura al correo del cliente, con el PDF adjunto.
+    Envía la factura al correo del cliente, con el PDF adjunto y, si ya se
+    consiguió (ver shared.sri_client.esperar_xml_factura_sri), el XML del
+    comprobante electrónico autorizado por el SRI -- en un solo mensaje.
     Devuelve False (sin lanzar error) si el cliente no tiene correo
     registrado, para que la vista pueda avisar sin romperse.
     """
@@ -99,21 +101,36 @@ def send_invoice_email(invoice, pdf_bytes):
         return False
 
     subject = f'Tu factura #{invoice.id} - Sistema de Ventas'
-    body = (
-        f'Hola {invoice.customer.full_name},\n\n'
-        f'Adjunto encontrarás tu factura #{invoice.id} por un total de '
-        f'{money(invoice.total)}.\n\n'
-    )
-    # El comprobante electrónico (XML) solo se emite para ventas de CONTADO
-    # (emitir_factura_sri se llama al confirmarse el pago en efectivo/
-    # transferencia o tras capturar PayPal -- ver billing/views.py). Las
-    # ventas a CRÉDITO nunca pasan por el microservicio SRI, así que no
-    # corresponde prometer un correo que no va a llegar.
-    if invoice.tipo_pago != 'CREDITO':
+    body = f'Hola {invoice.customer.full_name},\n\n'
+    if xml_bytes:
         body += (
-            'El comprobante electrónico (XML) te llegará en un correo '
-            'separado una vez autorizado por el SRI.\n\n'
+            f'Adjunto encontrarás tu factura #{invoice.id}, el comprobante '
+            f'electrónico autorizado por el SRI (XML), por un total de '
+            f'{money(invoice.total)}.\n\n'
         )
+    else:
+        body += (
+            f'Adjunto encontrarás tu factura #{invoice.id} por un total de '
+            f'{money(invoice.total)}.\n\n'
+        )
+        # El comprobante electrónico (XML) solo se emite para ventas de
+        # CONTADO (emitir_factura_sri se llama al confirmarse el pago en
+        # efectivo/transferencia o tras capturar PayPal -- ver
+        # billing/views.py). Las ventas a CRÉDITO nunca pasan por el
+        # microservicio SRI, así que no corresponde prometer un correo que
+        # no va a llegar.
+        #
+        # LIMITACIÓN CONOCIDA: emitir_factura_sri() manda enviar_email=False
+        # para que el micro SRI no duplique el correo -- así que si el SRI
+        # no autorizó a tiempo (esperar_xml_factura_sri agotó los
+        # intentos), este texto promete un correo aparte que en realidad
+        # NUNCA va a llegar (no hay reintento en segundo plano/cron). Es
+        # una limitación aceptada por ahora, no un bug.
+        if invoice.tipo_pago != 'CREDITO':
+            body += (
+                'El comprobante electrónico (XML) te llegará en un correo '
+                'separado una vez autorizado por el SRI.\n\n'
+            )
     body += '¡Gracias por tu compra!'
     email = EmailMessage(
         subject=subject,
@@ -122,6 +139,8 @@ def send_invoice_email(invoice, pdf_bytes):
         to=[customer_email],
     )
     email.attach(f'factura_{invoice.id}.pdf', pdf_bytes, 'application/pdf')
+    if xml_bytes:
+        email.attach(f'factura_{invoice.id}.xml', xml_bytes, 'application/xml')
     try:
         return bool(email.send(fail_silently=False))
     except Exception:
