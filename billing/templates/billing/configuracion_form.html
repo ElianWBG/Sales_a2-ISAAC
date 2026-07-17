@@ -26,18 +26,51 @@
 
           <hr class="my-4">
 
-          <h6 class="text-uppercase text-muted small fw-bold mb-1">Identidad Tributaria</h6>
-          <p class="text-muted small mb-3">Datos del emisor usados en el encabezado del PDF de factura.</p>
-          {% for field in form %}
-            {% if field.name != 'iva_porcentaje' %}
-            <div class="mb-3">
-              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-              {% render_field field class="form-control" %}
-              {% if field.help_text %}<div class="form-hint">{{ field.help_text }}</div>{% endif %}
-              {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          {# Colapsada por defecto -- mismo patrón que los módulos del
+             acordeón de Roles→Permisos (security/role_permissions.html):
+             botón con flecha que rota + contenido que se expande debajo.
+             El collapse de Bootstrap solo oculta con CSS, no saca los
+             campos del DOM ni los deshabilita, así que guardar con la
+             sección cerrada envía los valores que ya tenía igual.
+             Excepción: si un submit falló por un error en alguno de estos
+             campos (ej. RUC mal formado), se abre sola -- si no, el
+             usuario vería "guardado" fallar sin ver por qué. #}
+          <div class="accordion" id="identidadTributariaAccordion">
+            <div class="accordion-item mb-2 border-0 shadow-sm">
+              <h2 class="accordion-header">
+                {% if form.ruc.errors or form.razon_social.errors or form.nombre_comercial.errors or form.direccion_matriz.errors or form.direccion_establecimiento.errors or form.codigo_establecimiento.errors or form.punto_emision.errors or form.telefono.errors %}
+                <button class="accordion-button fw-semibold" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#identidadTributariaCollapse"
+                        aria-expanded="true" aria-controls="identidadTributariaCollapse">
+                  Identidad Tributaria
+                </button>
+                {% else %}
+                <button class="accordion-button collapsed fw-semibold" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#identidadTributariaCollapse"
+                        aria-expanded="false" aria-controls="identidadTributariaCollapse">
+                  Identidad Tributaria
+                </button>
+                {% endif %}
+              </h2>
+              <div id="identidadTributariaCollapse"
+                   class="accordion-collapse collapse {% if form.ruc.errors or form.razon_social.errors or form.nombre_comercial.errors or form.direccion_matriz.errors or form.direccion_establecimiento.errors or form.codigo_establecimiento.errors or form.punto_emision.errors or form.telefono.errors %}show{% endif %}">
+                <div class="accordion-body">
+                  <p class="text-muted small mb-3">Datos del emisor usados en el encabezado del PDF de factura.</p>
+                  {% for field in form %}
+                    {% if field.name != 'iva_porcentaje' %}
+                    <div class="mb-3">
+                      <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                      {% render_field field class="form-control" %}
+                      {% if field.help_text %}<div class="form-hint">{{ field.help_text }}</div>{% endif %}
+                      {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
             </div>
-            {% endif %}
-          {% endfor %}
+          </div>
+
           <div class="form-actions">
             <a href="{% url 'billing:home' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
             <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Guardar</button>
