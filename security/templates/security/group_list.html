@@ -34,7 +34,7 @@
           <td class="text-center"><span class="badge bg-success">{{ g.permissions.count }}</span></td>
           <td class="text-center"><span class="badge bg-info">{{ g.user_set.count }}</span></td>
           <td class="text-end text-nowrap">
-            <a href="{% url 'security:role_permissions' g.pk %}" class="btn btn-sm btn-primary" title="Permisos" aria-label="Permisos">
+            <a href="{% url 'security:role_permissions' g.pk %}" class="btn btn-sm btn-primary btn-text" title="Permisos" aria-label="Permisos">
               <i class="bi bi-shield-lock"></i> Permisos
             </a>
             <a href="{% url 'security:group_update' g.pk %}" class="btn btn-sm btn-warning" title="Editar" aria-label="Editar">

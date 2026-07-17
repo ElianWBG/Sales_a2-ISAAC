@@ -200,6 +200,24 @@ h1, h2, h3, h4, h5, h6 { font-weight: 700; letter-spacing: -.01em; }
 .table td .btn:hover { transform: translateY(-2px) scale(1.08); box-shadow: 0 6px 14px rgba(30, 34, 51, .2); }
 .table td .btn + .btn { margin-left: .3rem; }
 
+/* Botones de tabla que llevan TEXTO (ej. "Permisos", "Historial"), no solo
+   ícono: la regla de arriba los fuerza al mismo círculo de 34px pensado
+   para ver/editar/eliminar, y les corta el texto. .btn-text devuelve la
+   forma de píldora con ancho según contenido -- se aplica a mano en cada
+   botón que la necesita, así que no afecta a ningún botón de solo-ícono. */
+.table td .btn-text, .table th .btn-text {
+  border-radius: 50px; width: auto; height: auto; padding: .25rem .75rem;
+}
+.table td .btn-text:hover { transform: translateY(-2px); }
+
+/* overflow:hidden de .btn (arriba, para el brillo del hover) + flexbox
+   pueden achicar un botón con texto por debajo de lo que su contenido
+   necesita si comparte fila con un elemento de ancho flexible (ej. un
+   <select> "form-select" en un .d-flex) -- flex-shrink:0 evita que se
+   achique y corte el texto, sin tocar el overflow:hidden que necesita el
+   resto de los botones para el efecto de brillo. */
+.btn-text { flex-shrink: 0; }
+
 .table thead.table-dark th {
   background: var(--bs-dark); border-color: var(--bs-dark);
   font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
