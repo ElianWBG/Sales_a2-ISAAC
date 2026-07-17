@@ -6,26 +6,31 @@
 
 <div class="row justify-content-center">
   <div class="col-md-6">
-    <div class="card shadow">
-      <div class="card-header bg-primary text-white"><h4>Rol</h4></div>
-      <div class="card-body">
+    <div class="card detail-card">
+      <div class="detail-card-header">
+        <span class="detail-avatar"><i class="bi bi-shield-lock"></i></span>
+        <h4 class="mb-0">Rol</h4>
+      </div>
+      <div class="card-body p-4">
         <form method="post">
           {% csrf_token %}
 
           <div class="mb-3">
-            <label class="form-label fw-bold">Nombre del rol</label>
+            <label class="form-label">Nombre del rol</label>
             {{ form.name }}
             {% for error in form.name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
 
-          <div class="alert alert-light border small mb-4">
+          <div class="alert alert-info small mb-4">
             <i class="bi bi-info-circle me-1"></i>
             Los permisos de este rol se asignan desde el botón
             <strong>"Permisos"</strong> en el listado de roles, no aquí.
           </div>
 
-          <button type="submit" class="btn btn-primary">Guardar</button>
-          <a href="{% url 'security:group_list' %}" class="btn btn-secondary">Cancelar</a>
+          <div class="form-actions">
+            <a href="{% url 'security:group_list' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
+            <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+          </div>
         </form>
       </div>
     </div>

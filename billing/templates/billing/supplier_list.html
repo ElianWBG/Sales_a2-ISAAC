@@ -6,7 +6,7 @@
 <div class="modal fade" id="colModal" tabindex="-1" aria-labelledby="colModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content shadow-lg border-0">
-      <div class="modal-header text-white" style="background:linear-gradient(135deg,#1a56db,#0e3fa5);">
+      <div class="modal-header text-white" style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));">
         <h5 class="modal-title d-flex align-items-center gap-2" id="colModalLabel">
           <i class="bi bi-layout-three-columns"></i> Columnas visibles
         </h5>
@@ -43,12 +43,15 @@
 </div>
 
 {# ── Cabecera ── #}
-<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
-  <div>
-    <h2 class="mb-0">Proveedores</h2>
-    <small class="text-muted" id="colText">Cargando columnas…</small>
+<div class="page-header">
+  <div class="page-header-heading">
+    <span class="page-header-icon"><i class="bi bi-truck"></i></span>
+    <div>
+      <h2>Proveedores</h2>
+      <div class="page-header-subtitle" id="colText">Cargando columnas…</div>
+    </div>
   </div>
-  <div class="d-flex gap-2 flex-wrap">
+  <div class="page-header-actions">
     <button type="button" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1"
             data-bs-toggle="modal" data-bs-target="#colModal">
       <i class="bi bi-layout-three-columns"></i> Campos
@@ -284,11 +287,11 @@
     const html = ALL_COLS.map(col => `
       <div class="col-6 col-md-4">
         <label class="form-check-label d-flex align-items-center gap-2 border rounded p-3 h-100 w-100"
-               style="cursor:pointer; background:${activeCols.includes(col) ? '#e8f0fe' : ''}; border-color:${activeCols.includes(col) ? '#1a56db' : ''};transition:all .2s;">
+               style="cursor:pointer; background:${activeCols.includes(col) ? 'rgba(79,70,229,.08)' : ''}; border-color:${activeCols.includes(col) ? '#4f46e5' : ''};transition:all .2s;">
           <input type="checkbox" class="form-check-input col-checkbox flex-shrink-0" value="${col}"
                  data-col="${col}" ${activeCols.includes(col) ? 'checked' : ''}>
           <span>
-            <i class="bi ${COL_ICONS[col]} me-2" style="color:#1a56db;"></i>
+            <i class="bi ${COL_ICONS[col]} me-2" style="color:#4f46e5;"></i>
             <span class="fw-semibold">${COL_LABELS[col]}</span>
           </span>
         </label>

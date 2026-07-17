@@ -2,9 +2,11 @@
 {% block title %}Gestión de Roles y Permisos{% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center gap-2 mb-4">
-  <i class="bi bi-shield-lock-fill text-warning fs-3"></i>
-  <h2 class="mb-0">Gestión de Roles y Permisos</h2>
+<div class="page-header">
+  <div class="page-header-heading">
+    <span class="page-header-icon"><i class="bi bi-shield-lock-fill"></i></span>
+    <h2>Gestión de Roles y Permisos</h2>
+  </div>
 </div>
 
 <div class="row g-0 shadow-sm rounded overflow-hidden" style="min-height:70vh;">
@@ -63,7 +65,7 @@
     <div class="modal fade" id="modalGuardarDefault" tabindex="-1" aria-labelledby="modalGuardarDefaultLabel" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
-          <div class="modal-header text-white" style="background:linear-gradient(135deg,#1a56db,#0e3fa5);">
+          <div class="modal-header text-white" style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));">
             <h5 class="modal-title d-flex align-items-center gap-2" id="modalGuardarDefaultLabel">
               <i class="bi bi-download"></i> Guardar como predeterminado
             </h5>
@@ -90,7 +92,7 @@
     <div class="modal fade" id="modalAplicarDefault" tabindex="-1" aria-labelledby="modalAplicarDefaultLabel" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
-          <div class="modal-header text-white" style="background:linear-gradient(135deg,#1a56db,#0e3fa5);">
+          <div class="modal-header text-white" style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));">
             <h5 class="modal-title d-flex align-items-center gap-2" id="modalAplicarDefaultLabel">
               <i class="bi bi-arrow-counterclockwise"></i> Permisos predeterminados
             </h5>

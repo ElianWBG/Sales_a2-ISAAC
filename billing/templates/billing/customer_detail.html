@@ -2,14 +2,13 @@
 {% block title %}{{ customer.full_name }}{% endblock %}
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <nav aria-label="breadcrumb">
-    <ol class="breadcrumb mb-0">
-      <li class="breadcrumb-item"><a href="{% url 'billing:customer_list' %}">Clientes</a></li>
-      <li class="breadcrumb-item active">{{ customer.full_name }}</li>
-    </ol>
-  </nav>
-  <div class="d-flex gap-2">
+<div class="page-header">
+  <ul class="breadcrumb-clinical">
+    <li><a href="{% url 'billing:customer_list' %}">Clientes</a></li>
+    <li><i class="bi bi-chevron-right"></i></li>
+    <li>{{ customer.full_name }}</li>
+  </ul>
+  <div class="page-header-actions">
     {% if perms.billing.change_customer %}
     <a href="{% url 'billing:customer_update' customer.pk %}" class="btn btn-warning btn-sm">
       <i class="bi bi-pencil-fill"></i> Editar
@@ -21,131 +20,104 @@
   </div>
 </div>
 
-<div class="card shadow border-0 overflow-hidden">
+<div class="card detail-card">
 
-  <div class="card-header border-0 py-3 px-4" style="background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);">
-    <div class="d-flex align-items-center gap-3">
-      <div class="bg-white bg-opacity-25 rounded-circle d-flex align-items-center justify-content-center"
-           style="width:40px;height:40px;flex-shrink:0;">
-        <i class="bi bi-person text-white fs-5"></i>
-      </div>
-      <div>
-        <h4 class="mb-0 text-white fw-bold">{{ customer.full_name }}</h4>
-        <small class="text-white text-opacity-75">DNI/RUC: {{ customer.dni }}</small>
-      </div>
-      <div class="ms-auto">
-        {% if customer.is_active %}
-          <span class="badge bg-success fs-6 px-3 py-2">Activo</span>
-        {% else %}
-          <span class="badge bg-secondary fs-6 px-3 py-2">Inactivo</span>
-        {% endif %}
-      </div>
+  <div class="detail-card-header">
+    <span class="detail-avatar"><i class="bi bi-person"></i></span>
+    <div class="flex-grow-1">
+      <h3>{{ customer.full_name }}</h3>
+      <small class="text-muted">DNI/RUC: {{ customer.dni }}</small>
     </div>
+    {% if customer.is_active %}
+      <span class="badge bg-success">Activo</span>
+    {% else %}
+      <span class="badge bg-secondary">Inactivo</span>
+    {% endif %}
   </div>
 
-  <div class="card-body p-4">
-
-    {# Información de contacto destacada #}
-    <div class="row g-3 mb-4">
+  <div class="p-4 pb-0">
+    <div class="row g-3 mb-1">
       <div class="col-12 col-md-6">
-        <div class="rounded-3 p-3 h-100" style="background:#eff6ff; border-left:4px solid #1a56db;">
+        <div class="rounded-3 p-3 h-100" style="background:rgba(var(--primary-rgb),.06); border-left:4px solid var(--primary);">
           <div class="text-muted small mb-1">Email</div>
-          <div class="fw-bold text-truncate" style="color:#1a56db;" title="{{ customer.email|default:'No registrado' }}">
+          <div class="fw-bold text-truncate" style="color:var(--primary);" title="{{ customer.email|default:'No registrado' }}">
             {{ customer.email|default:"No registrado" }}
           </div>
         </div>
       </div>
       <div class="col-12 col-md-6">
-        <div class="rounded-3 p-3 h-100" style="background:#f0fdf4; border-left:4px solid #22c55e;">
+        <div class="rounded-3 p-3 h-100" style="background:rgba(22,163,74,.07); border-left:4px solid var(--success);">
           <div class="text-muted small mb-1">Teléfono</div>
           <div class="fw-bold text-success">{{ customer.phone|default:"No registrado" }}</div>
         </div>
       </div>
     </div>
-
-    {# Información personal #}
-    <div class="mb-4">
-      <h6 class="text-muted fw-bold mb-3">
-        <i class="bi bi-person-vcard me-2"></i>Datos personales
-      </h6>
-      <div class="table-responsive">
-        <table class="table table-sm table-borderless mb-0">
-          <tbody>
-            <tr>
-              <td class="text-muted fw-semibold ps-0" style="width:140px;">DNI/RUC</td>
-              <td>
-                <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary fw-semibold px-3 py-2">
-                  {{ customer.dni }}
-                </span>
-              </td>
-            </tr>
-            <tr>
-              <td class="text-muted fw-semibold ps-0">Nombre</td>
-              <td class="text-secondary">{{ customer.first_name }}</td>
-            </tr>
-            <tr>
-              <td class="text-muted fw-semibold ps-0">Apellido</td>
-              <td class="text-secondary">{{ customer.last_name }}</td>
-            </tr>
-            {% if customer.address %}
-            <tr>
-              <td class="text-muted fw-semibold ps-0 align-top pt-2">Dirección</td>
-              <td class="pt-2 text-secondary">{{ customer.address }}</td>
-            </tr>
-            {% endif %}
-            <tr>
-              <td class="text-muted fw-semibold ps-0">Creado</td>
-              <td class="text-secondary">{{ customer.created_at|date:"d/m/Y H:i" }}</td>
-            </tr>
-            <tr>
-              <td class="text-muted fw-semibold ps-0">Actualizado</td>
-              <td class="text-secondary">{{ customer.updated_at|date:"d/m/Y H:i" }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    {# Perfil extendido si existe #}
-    {% if customer.profile %}
-    <div class="border-top pt-4">
-      <h6 class="text-muted fw-bold mb-3">
-        <i class="bi bi-info-circle me-2"></i>Información de perfil
-      </h6>
-      <div class="row g-3">
-        <div class="col-12 col-md-6">
-          <div class="rounded p-3" style="background:#f8fafc;">
-            <div class="text-muted small mb-1">Tipo de contribuyente</div>
-            <div class="fw-semibold text-secondary">{{ customer.profile.get_taxpayer_type_display }}</div>
-          </div>
-        </div>
-        <div class="col-12 col-md-6">
-          <div class="rounded p-3" style="background:#f8fafc;">
-            <div class="text-muted small mb-1">Términos de pago</div>
-            <div class="fw-semibold text-secondary">{{ customer.profile.get_payment_terms_display }}</div>
-          </div>
-        </div>
-        <div class="col-12 col-md-6">
-          <div class="rounded p-3" style="background:#f8fafc;">
-            <div class="text-muted small mb-1">Límite de crédito</div>
-            <div class="fw-bold text-success">${{ customer.profile.credit_limit }}</div>
-          </div>
-        </div>
-        {% if customer.profile.notes %}
-        <div class="col-12">
-          <div class="rounded p-3" style="background:#f8fafc;">
-            <div class="text-muted small mb-1">Notas</div>
-            <div class="text-secondary small">{{ customer.profile.notes }}</div>
-          </div>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-    {% endif %}
-
   </div>
 
-  <div class="card-footer bg-light border-0 px-4 py-3 d-flex justify-content-end gap-2">
+  <dl class="detail-list">
+    <div class="detail-row">
+      <dt>DNI/RUC</dt>
+      <dd><span class="badge rounded-pill bg-primary bg-opacity-10 text-primary fw-semibold px-3 py-2">{{ customer.dni }}</span></dd>
+    </div>
+    <div class="detail-row">
+      <dt>Nombre</dt>
+      <dd>{{ customer.first_name }}</dd>
+    </div>
+    <div class="detail-row">
+      <dt>Apellido</dt>
+      <dd>{{ customer.last_name }}</dd>
+    </div>
+    {% if customer.address %}
+    <div class="detail-row">
+      <dt>Dirección</dt>
+      <dd>{{ customer.address }}</dd>
+    </div>
+    {% endif %}
+    <div class="detail-row">
+      <dt>Creado</dt>
+      <dd>{{ customer.created_at|date:"d/m/Y H:i" }}</dd>
+    </div>
+    <div class="detail-row">
+      <dt>Actualizado</dt>
+      <dd>{{ customer.updated_at|date:"d/m/Y H:i" }}</dd>
+    </div>
+  </dl>
+
+  {% if customer.profile %}
+  <div class="px-4 pb-4">
+    <div class="form-section-title">Información de perfil</div>
+    <div class="row g-3">
+      <div class="col-12 col-md-6">
+        <div class="rounded-3 p-3" style="background:var(--bg);">
+          <div class="text-muted small mb-1">Tipo de contribuyente</div>
+          <div class="fw-semibold">{{ customer.profile.get_taxpayer_type_display }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="rounded-3 p-3" style="background:var(--bg);">
+          <div class="text-muted small mb-1">Términos de pago</div>
+          <div class="fw-semibold">{{ customer.profile.get_payment_terms_display }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="rounded-3 p-3" style="background:var(--bg);">
+          <div class="text-muted small mb-1">Límite de crédito</div>
+          <div class="fw-bold text-success">${{ customer.profile.credit_limit }}</div>
+        </div>
+      </div>
+      {% if customer.profile.notes %}
+      <div class="col-12">
+        <div class="rounded-3 p-3" style="background:var(--bg);">
+          <div class="text-muted small mb-1">Notas</div>
+          <div class="small">{{ customer.profile.notes }}</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card-footer bg-light border-top d-flex justify-content-end gap-2">
     {% if perms.billing.change_customer %}
     <a href="{% url 'billing:customer_update' customer.pk %}" class="btn btn-warning">
       <i class="bi bi-pencil-fill"></i> Editar cliente

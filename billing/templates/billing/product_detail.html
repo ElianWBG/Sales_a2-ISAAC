@@ -2,23 +2,26 @@
 {% block title %}Detalle de Producto{% endblock %}
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <h2 class="mb-0 fw-bold">Detalle del Producto</h2>
-    <small class="text-muted">Información completa del producto seleccionado</small>
+<div class="page-header">
+  <div class="page-header-heading">
+    <span class="page-header-icon"><i class="bi bi-box-seam"></i></span>
+    <div>
+      <h2>Detalle del Producto</h2>
+      <div class="page-header-subtitle">Información completa del producto seleccionado</div>
+    </div>
   </div>
   <a href="{% url 'billing:product_list' %}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
     <i class="bi bi-arrow-left"></i> Volver al listado
   </a>
 </div>
 
-<div class="card shadow border-0" style="border-radius:1rem;">
+<div class="card detail-card">
   <div class="card-body p-0">
     <div class="row g-0">
 
       {# ── Columna izquierda: imagen ── #}
       <div class="col-md-4 d-flex align-items-center justify-content-center p-4"
-           style="background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);border-radius:1rem 0 0 1rem;min-height:380px;">
+           style="background:linear-gradient(135deg,#f8f9fa 0%,#e9ecef 100%);min-height:380px;">
         {% if product.image %}
           <img src="{{ product.image.url }}" alt="{{ product.name }}"
                class="img-fluid rounded shadow"
@@ -37,7 +40,6 @@
       {# ── Columna derecha: datos ── #}
       <div class="col-md-8 p-4 p-lg-5">
 
-        {# Encabezado del producto #}
         <div class="mb-4 pb-3 border-bottom">
           <h3 class="fw-bold mb-1">{{ product.name }}</h3>
           <span class="badge {% if product.is_active %}bg-success{% else %}bg-secondary{% endif %} fs-6 px-3 py-1">
@@ -45,9 +47,7 @@
           </span>
         </div>
 
-        {# Grid de datos #}
         <div class="row g-3 mb-3">
-
           <div class="col-sm-6">
             <div class="p-3 rounded bg-light h-100">
               <p class="text-muted small mb-1 fw-semibold text-uppercase" style="letter-spacing:.05em;">
@@ -67,7 +67,7 @@
           </div>
 
           <div class="col-sm-6">
-            <div class="p-3 rounded h-100" style="background:#e8f5e9;">
+            <div class="p-3 rounded h-100" style="background:rgba(22,163,74,.08);">
               <p class="text-muted small mb-1 fw-semibold text-uppercase" style="letter-spacing:.05em;">
                 <i class="bi bi-currency-dollar me-1"></i>Precio Unitario
               </p>
@@ -76,32 +76,31 @@
           </div>
 
           <div class="col-sm-6">
-            <div class="p-3 rounded h-100
-              {% if product.stock == 0 %}
-                " style="background:#fdecea;">
+            {% if product.stock == 0 %}
+            <div class="p-3 rounded h-100" style="background:rgba(220,38,38,.08);">
               <p class="text-muted small mb-1 fw-semibold text-uppercase" style="letter-spacing:.05em;">
                 <i class="bi bi-boxes me-1"></i>Stock
               </p>
               <p class="mb-0 fw-bold fs-4 text-danger">{{ product.stock }} unidades</p>
+            </div>
             {% elif product.stock < 5 %}
-                " style="background:#fff8e1;">
+            <div class="p-3 rounded h-100" style="background:rgba(217,119,6,.1);">
               <p class="text-muted small mb-1 fw-semibold text-uppercase" style="letter-spacing:.05em;">
                 <i class="bi bi-boxes me-1"></i>Stock
               </p>
               <p class="mb-0 fw-bold fs-4 text-warning">{{ product.stock }} unidades</p>
+            </div>
             {% else %}
-                " style="background:#e8f5e9;">
+            <div class="p-3 rounded h-100" style="background:rgba(22,163,74,.08);">
               <p class="text-muted small mb-1 fw-semibold text-uppercase" style="letter-spacing:.05em;">
                 <i class="bi bi-boxes me-1"></i>Stock
               </p>
               <p class="mb-0 fw-bold fs-4 text-success">{{ product.stock }} unidades</p>
-            {% endif %}
             </div>
+            {% endif %}
           </div>
-
         </div>
 
-        {# Proveedores #}
         <div class="mb-3">
           <p class="text-muted small fw-semibold text-uppercase mb-2" style="letter-spacing:.05em;">
             <i class="bi bi-truck me-1"></i>Proveedores
@@ -115,7 +114,6 @@
           </div>
         </div>
 
-        {# Descripción #}
         {% if product.description %}
         <div class="mb-3">
           <p class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.05em;">
@@ -125,7 +123,6 @@
         </div>
         {% endif %}
 
-        {# Fechas #}
         <div class="row g-2 mt-2 pt-3 border-top">
           <div class="col-6">
             <p class="text-muted small mb-0">
@@ -141,7 +138,6 @@
           </div>
         </div>
 
-        {# Botones de acción #}
         <div class="d-flex gap-2 mt-4 pt-3 border-top flex-wrap">
           {% if perms.billing.change_product %}
           <a href="{% url 'billing:product_update' product.pk %}"

@@ -1,27 +1,31 @@
 {% extends 'billing/base.html' %}
 {% block title %}Factura #{{ invoice.id }}{% endblock %}
 {% block content %}
-<div class="card shadow mb-4">
-  <div class="card-header bg-dark text-white">
-    <h4>Factura #{{ invoice.id }}</h4>
+
+<div class="page-header">
+  <div class="page-header-heading">
+    <span class="page-header-icon"><i class="bi bi-receipt"></i></span>
+    <div>
+      <h2>Factura #{{ invoice.id }}</h2>
+      <div class="page-header-subtitle">{{ invoice.invoice_date|date:"d/m/Y H:i" }}</div>
+    </div>
   </div>
-  <div class="card-body">
+  <span class="badge {% if invoice.estado == 'PAGADA' %}bg-success{% elif invoice.estado == 'CANCELADA' %}bg-secondary{% else %}bg-warning text-dark{% endif %} fs-6 px-3 py-2">{{ invoice.estado }}</span>
+</div>
+
+<div class="card detail-card mb-4">
+  <div class="card-body p-4">
     <div class="row mb-3">
       <div class="col-md-6">
-        <p><strong>Cliente:</strong> {{ invoice.customer.full_name }}</p>
-        <p><strong>DNI/RUC:</strong> {{ invoice.customer.dni }}</p>
+        <p class="mb-1"><strong>Cliente:</strong> {{ invoice.customer.full_name }}</p>
+        <p class="mb-1"><strong>DNI/RUC:</strong> {{ invoice.customer.dni }}</p>
       </div>
-      <div class="col-md-6 text-end">
-        <p><strong>Fecha:</strong> {{ invoice.invoice_date|date:"d/m/Y H:i" }}</p>
-        <p><strong>Factura #:</strong> {{ invoice.id }}</p>
-        <p>
-          <strong>Tipo de pago:</strong> {{ invoice.tipo_pago }}
-          <span class="badge {% if invoice.estado == 'PAGADA' %}bg-success{% elif invoice.estado == 'CANCELADA' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">{{ invoice.estado }}</span>
-        </p>
+      <div class="col-md-6 text-md-end">
+        <p class="mb-1"><strong>Tipo de pago:</strong> {{ invoice.tipo_pago }}</p>
         {% if invoice.tipo_pago == 'CONTADO' and invoice.metodo_pago %}
-        <p><strong>Método de pago:</strong> {{ invoice.get_metodo_pago_display }}</p>
+        <p class="mb-1"><strong>Método de pago:</strong> {{ invoice.get_metodo_pago_display }}</p>
         {% endif %}
-        {% if invoice.tipo_pago == 'CREDITO' %}<p><strong>Saldo pendiente:</strong> ${{ invoice.saldo }}</p>{% endif %}
+        {% if invoice.tipo_pago == 'CREDITO' %}<p class="mb-1"><strong>Saldo pendiente:</strong> ${{ invoice.saldo }}</p>{% endif %}
       </div>
     </div>
 
@@ -42,54 +46,70 @@
       {% endif %}
     </div>
     {% endif %}
-    <table class="table table-bordered">
-      <thead class="table-dark">
-        <tr>
-          <th>Producto</th>
-          <th class="text-center">Cantidad</th>
-          <th class="text-end">Precio único</th>
-          <th class="text-end">Subtotal</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for detail in invoice.details.all %}
-        <tr>
-          <td>{{ detail.product.name }}</td>
-          <td class="text-center">{{ detail.quantity }}</td>
-          <td class="text-end">${{ detail.unit_price }}</td>
-          <td class="text-end">${{ detail.subtotal }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="3" class="text-end fw-bold">Subtotal:</td>
-          <td class="text-end">${{ invoice.subtotal }}</td>
-        </tr>
-        <tr>
-          <td colspan="3" class="text-end fw-bold">IVA (15%):</td>
-          <td class="text-end">${{ invoice.tax }}</td>
-        </tr>
-        <tr class="table-warning">
-          <td colspan="3" class="text-end fw-bold fs-5">TOTAL:</td>
-          <td class="text-end fw-bold fs-5">${{ invoice.total }}</td>
-        </tr>
-      </tfoot>
-    </table>
-    <a href="{% url 'billing:invoice_list' %}" class="btn btn-secondary">Volver</a>
+
+    <div class="table-responsive">
+      <table class="table table-bordered mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Producto</th>
+            <th class="text-center">Cantidad</th>
+            <th class="text-end">Precio único</th>
+            <th class="text-end">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for detail in invoice.details.all %}
+          <tr>
+            <td>{{ detail.product.name }}</td>
+            <td class="text-center">{{ detail.quantity }}</td>
+            <td class="text-end">${{ detail.unit_price }}</td>
+            <td class="text-end">${{ detail.subtotal }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" class="text-end fw-bold">Subtotal:</td>
+            <td class="text-end">${{ invoice.subtotal }}</td>
+          </tr>
+          <tr>
+            <td colspan="3" class="text-end fw-bold">IVA (15%):</td>
+            <td class="text-end">${{ invoice.tax }}</td>
+          </tr>
+          <tr class="table-warning">
+            <td colspan="3" class="text-end fw-bold fs-5">TOTAL:</td>
+            <td class="text-end fw-bold fs-5">${{ invoice.total }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="card-footer bg-light border-top d-flex gap-2 flex-wrap">
+    <a href="{% url 'billing:invoice_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
     {% if perms.billing.imprimir_factura %}
-    <a href="{% url 'billing:invoice_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">Imprimir Factura</a>
+    <a href="{% url 'billing:invoice_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">
+      <i class="bi bi-printer"></i> Imprimir Factura
+    </a>
     {% endif %}
     {% if invoice.tipo_pago == 'CREDITO' %}
     {% if perms.creditos_ventas.view_cuotaventa %}
-    <a href="{% url 'creditos_ventas:cuotas_factura' invoice.pk %}" class="btn btn-outline-dark">Ver Cuotas</a>
+    <a href="{% url 'creditos_ventas:cuotas_factura' invoice.pk %}" class="btn btn-outline-dark">
+      <i class="bi bi-calendar-check"></i> Ver Cuotas
+    </a>
     {% endif %}
     {% if perms.creditos_ventas.imprimir_plan_pagos %}
-    <a href="{% url 'creditos_ventas:plan_pagos_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">Imprimir Plan de Pagos</a>
+    <a href="{% url 'creditos_ventas:plan_pagos_pdf' invoice.pk %}" target="_blank" class="btn btn-outline-primary">
+      <i class="bi bi-printer"></i> Imprimir Plan de Pagos
+    </a>
     {% endif %}
     {% endif %}
     {% if perms.billing.delete_invoice %}
-    <a href="{% url 'billing:invoice_delete' invoice.pk %}" class="btn btn-danger">Eliminar</a>
+    <a href="{% url 'billing:invoice_delete' invoice.pk %}" class="btn btn-outline-danger ms-auto">
+      <i class="bi bi-trash"></i> Eliminar
+    </a>
     {% endif %}
   </div>
 </div>

@@ -1,15 +1,28 @@
-{% extends 'billing/base.html' %}
-{% block content %}
-<div class="d-flex flex-column align-items-center justify-content-center text-center py-5">
-  <div class="mb-3">
-    {% block error_icon %}<i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 4rem;"></i>{% endblock %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Error{% endblock %} - Sistema de Ventas</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{% static 'billing/css/theme.css' %}" rel="stylesheet">
+</head>
+<body>
+<div class="error-shell">
+  <div>
+    <div class="mb-2">
+      {% block error_icon %}<i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i>{% endblock %}
+    </div>
+    <div class="error-code mb-2">{% block error_code %}Error{% endblock %}</div>
+    <h4 class="mb-3 text-white">{% block error_title %}Ocurrió un error{% endblock %}</h4>
+    <p class="mx-auto mb-4" style="max-width: 480px;">{% block error_message %}Algo no salió como se esperaba.{% endblock %}</p>
+    {% block error_extra %}{% endblock %}
+    <a href="/" class="btn btn-light px-4">
+      <i class="bi bi-house-door me-1"></i> Volver al inicio
+    </a>
   </div>
-  <h1 class="display-4 fw-bold mb-2">{% block error_code %}Error{% endblock %}</h1>
-  <h4 class="mb-3">{% block error_title %}Ocurrió un error{% endblock %}</h4>
-  <p class="text-muted mb-4" style="max-width: 480px;">{% block error_message %}Algo no salió como se esperaba.{% endblock %}</p>
-  {% block error_extra %}{% endblock %}
-  <a href="{% url 'billing:home' %}" class="btn btn-primary px-4">
-    <i class="bi bi-house-door me-1"></i> Volver al inicio
-  </a>
 </div>
-{% endblock %}
+</body>
+</html>

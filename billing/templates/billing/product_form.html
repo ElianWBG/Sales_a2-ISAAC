@@ -2,16 +2,19 @@
 {% block title %}{{ page_title|default:"Producto" }}{% endblock %}
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <h2 class="mb-0 fw-bold">{{ page_title|default:"Producto" }}</h2>
-    <small class="text-muted">
-      {% if is_edit %}
-        Modifica los datos del producto seleccionado.
-      {% else %}
-        Completa los campos para registrar un nuevo producto.
-      {% endif %}
-    </small>
+<div class="page-header">
+  <div class="page-header-heading">
+    <span class="page-header-icon"><i class="bi bi-box-seam"></i></span>
+    <div>
+      <h2>{{ page_title|default:"Producto" }}</h2>
+      <div class="page-header-subtitle">
+        {% if is_edit %}
+          Modifica los datos del producto seleccionado.
+        {% else %}
+          Completa los campos para registrar un nuevo producto.
+        {% endif %}
+      </div>
+    </div>
   </div>
   <a href="{% url 'billing:product_list' %}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
     <i class="bi bi-arrow-left"></i> Volver al listado
@@ -35,7 +38,7 @@
     <div class="col-lg-7">
       <div class="card shadow-sm border-0 h-100">
         <div class="card-header py-3 d-flex align-items-center gap-2"
-             style="background:linear-gradient(135deg,#1a56db,#0e3fa5);">
+             style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));">
           <i class="bi bi-clipboard-data text-white fs-5"></i>
           <h5 class="mb-0 text-white">Información del producto</h5>
         </div>
@@ -241,7 +244,7 @@
                 <div class="text-end">
                   <span id="balanceValue"
                         class="fw-bold fs-4"
-                        style="color:#1a56db;">
+                        style="color:var(--primary);">
                     {% if is_edit %}${{ form.instance.balance }}{% else %}$0.00{% endif %}
                   </span>
                 </div>
@@ -351,7 +354,7 @@
       } else {
         balanceBox.style.background   = '#f8f9fa';
         balanceBox.style.borderColor  = '#dee2e6';
-        if (balanceValue) balanceValue.style.color = '#1a56db';
+        if (balanceValue) balanceValue.style.color = '#4f46e5';
       }
     }
   }

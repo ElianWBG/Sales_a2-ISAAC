@@ -2,18 +2,24 @@
 {% load l10n %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-<div class="card shadow">
-  <div class="card-header bg-primary text-white"><h4>{{ title }}</h4></div>
-  <div class="card-body">
+<div class="page-header">
+  <div class="page-header-heading">
+    <span class="page-header-icon"><i class="bi bi-receipt"></i></span>
+    <h2>{{ title }}</h2>
+  </div>
+</div>
+
+<div class="card detail-card">
+  <div class="card-body p-4">
     <form method="post">
       {% csrf_token %}
 
       <div class="mb-3">
-        <label class="form-label fw-bold">Cliente</label>
+        <label class="form-label">Cliente</label>
         <div class="d-flex gap-2">
           {{ form.customer }}
           <button type="button" class="btn btn-outline-primary btn-sm text-nowrap" data-bs-toggle="modal" data-bs-target="#modalNuevoCliente">
-            + Nuevo Cliente
+            <i class="bi bi-plus-lg"></i> Nuevo Cliente
           </button>
         </div>
         {% for error in form.customer.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
@@ -21,19 +27,19 @@
 
       <div class="row g-3 mb-3">
         <div class="col-md-6">
-          <label class="form-label fw-bold">Tipo de pago</label>
+          <label class="form-label">Tipo de pago</label>
           {{ form.tipo_pago }}
           {% for error in form.tipo_pago.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
         </div>
         <div class="col-md-6" id="metodo-pago-wrapper">
-          <label class="form-label fw-bold">Método de pago</label>
+          <label class="form-label">Método de pago</label>
           {{ form.metodo_pago }}
           {% for error in form.metodo_pago.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
         </div>
         <div class="col-md-6" id="num-cuotas-wrapper">
-          <label class="form-label fw-bold">{{ form.num_cuotas.label }}</label>
+          <label class="form-label">{{ form.num_cuotas.label }}</label>
           {{ form.num_cuotas }}
-          {% if form.num_cuotas.help_text %}<small class="text-muted d-block">{{ form.num_cuotas.help_text }}</small>{% endif %}
+          {% if form.num_cuotas.help_text %}<div class="form-hint">{{ form.num_cuotas.help_text }}</div>{% endif %}
           {% for error in form.num_cuotas.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
         </div>
       </div>
@@ -42,53 +48,57 @@
         <div class="alert alert-danger">{{ form.non_field_errors }}</div>
       {% endif %}
 
-      <h5 class="mt-4 mb-3">Detalle de la factura</h5>
+      <div class="form-section-title">Detalle de la factura</div>
       {{ formset.management_form }}
 
-      <table class="table table-bordered align-middle" id="detail-table">
-        <thead class="table-dark">
-          <tr>
-            <th>Producto</th>
-            <th style="width: 120px;">Cantidad</th>
-            <th style="width: 150px;">Precio unitario</th>
-            <th style="width: 130px;" class="text-end">Subtotal</th>
-            <th style="width: 90px;">Quitar</th>
-          </tr>
-        </thead>
-        <tbody id="detail-rows">
-          {% for detail_form in formset %}
-          {% for error in form.customer.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
-          <tr class="detail-row">
-            <td>
-              {{ detail_form.product }}
-              {% for error in detail_form.product.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-              {% for hidden in detail_form.hidden_fields %}{{ hidden }}{% endfor %}
-            </td>
-            <td>
-              {{ detail_form.quantity }}
-              {% for error in detail_form.quantity.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-            </td>
-            <td>
-              {{ detail_form.unit_price }}
-              {% for error in detail_form.unit_price.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
-            </td>
-            <td class="text-end">
-              <span class="row-subtotal fw-semibold">$0.00</span>
-            </td>
-            <td class="text-center">
-              <div style="display:none;">{{ detail_form.DELETE }}</div>
-              <button type="button" class="btn btn-sm btn-outline-danger remove-row">✕</button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle" id="detail-table">
+          <thead class="table-dark">
+            <tr>
+              <th>Producto</th>
+              <th style="width: 120px;">Cantidad</th>
+              <th style="width: 150px;">Precio unitario</th>
+              <th style="width: 130px;" class="text-end">Subtotal</th>
+              <th style="width: 90px;">Quitar</th>
+            </tr>
+          </thead>
+          <tbody id="detail-rows">
+            {% for detail_form in formset %}
+            {% for error in form.customer.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}
+            <tr class="detail-row">
+              <td>
+                {{ detail_form.product }}
+                {% for error in detail_form.product.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                {% for hidden in detail_form.hidden_fields %}{{ hidden }}{% endfor %}
+              </td>
+              <td>
+                {{ detail_form.quantity }}
+                {% for error in detail_form.quantity.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              </td>
+              <td>
+                {{ detail_form.unit_price }}
+                {% for error in detail_form.unit_price.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+              </td>
+              <td class="text-end">
+                <span class="row-subtotal fw-semibold">$0.00</span>
+              </td>
+              <td class="text-center">
+                <div style="display:none;">{{ detail_form.DELETE }}</div>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="bi bi-x-lg"></i></button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-      <button type="button" id="add-row" class="btn btn-sm btn-success mb-3">+ Agregar producto</button>
+      <button type="button" id="add-row" class="btn btn-sm btn-success mb-3">
+        <i class="bi bi-plus-lg"></i> Agregar producto
+      </button>
 
       {# ── Resumen de totales (en vivo, vía JS) ── #}
       <div class="d-flex justify-content-end mb-3">
-        <div style="min-width:280px;">
+        <div class="rounded-3 p-3" style="min-width:280px;background:var(--bg);">
           <div class="d-flex justify-content-between">
             <span class="text-muted">Subtotal:</span>
             <span id="summary-subtotal">$0.00</span>
@@ -108,9 +118,9 @@
         <div class="text-danger">{{ formset.non_form_errors }}</div>
       {% endif %}
 
-      <div>
-        <button type="submit" class="btn btn-primary">Guardar Factura</button>
-        <a href="{% url 'billing:invoice_list' %}" class="btn btn-secondary">Cancelar</a>
+      <div class="form-actions">
+        <a href="{% url 'billing:invoice_list' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
+        <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>Guardar Factura</button>
       </div>
     </form>
   </div>
