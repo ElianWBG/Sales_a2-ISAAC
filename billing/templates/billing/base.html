@@ -1,3 +1,4 @@
+{% load static %}
 {% load security_tags %}
 <!DOCTYPE html>
 <html lang="es">
@@ -7,122 +8,190 @@
   <title>{% block title %}Ventas{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{% static 'billing/css/theme.css' %}" rel="stylesheet">
 </head>
-<body>
+<body class="{% if user.is_authenticated %}has-sidebar{% else %}auth-mode{% endif %}">
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container">
-    <a class="navbar-brand" href="{% url 'billing:home' %}">Sistema de Ventas</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav me-auto">
-        {% if user.is_authenticated %}
-
-        <!-- COMPRAS: Analista de Compras y Administrador -->
-        {% if perms.billing.view_brand or perms.billing.add_brand or perms.billing.change_brand or perms.billing.delete_brand %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'billing:brand_list' %}">Marcas</a></li>
-        {% endif %}
-        {% if perms.purchasing.view_purchase or perms.purchasing.add_purchase or perms.purchasing.change_purchase or perms.purchasing.delete_purchase %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'purchasing:purchase_list' %}">Compras</a></li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'creditos_compras:cuotas_pendientes' %}">Cuotas Pendientes</a></li>
-        {% endif %}
-        {% if perms.billing.view_productgroup or perms.billing.add_productgroup or perms.billing.change_productgroup or perms.billing.delete_productgroup %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'billing:productgroup_list' %}">Grupos</a></li>
-        {% endif %}
-        {% if perms.billing.view_supplier or perms.billing.add_supplier or perms.billing.change_supplier or perms.billing.delete_supplier %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'billing:supplier_list' %}">Proveedores</a></li>
-        {% endif %}
-        {% if perms.billing.view_product or perms.billing.add_product or perms.billing.change_product or perms.billing.delete_product %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'billing:product_list' %}">Productos</a></li>
-        {% endif %}
-
-        <!-- VENTAS: Vendedor y Administrador -->
-        {% if perms.billing.view_customer or perms.billing.add_customer or perms.billing.change_customer or perms.billing.delete_customer %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'billing:customer_list' %}">Clientes</a></li>
-        {% endif %}
-        {% if perms.billing.view_invoice or perms.billing.add_invoice or perms.billing.change_invoice or perms.billing.delete_invoice %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'billing:invoice_list' %}">Facturas</a></li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'creditos_ventas:cuotas_pendientes' %}">Cuotas Pendientes</a></li>
-        {% endif %}
-
-        <!-- SEGURIDAD: solo Administrador -->
-        {% if user|has_group:'Administrador' %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Seguridad</a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'security:user_list' %}">Usuarios</a></li>
-            <li><a class="dropdown-item" href="{% url 'security:group_list' %}">Roles</a></li>
-            <li><a class="dropdown-item" href="{% url 'security:permission_list' %}">Catálogo de Permisos</a></li>
-            <li><a class="dropdown-item" href="{% url 'billing:configuracion' %}">Configuración</a></li>
-          </ul>
-        </li>
-        {% endif %}
-
-        {% endif %}
-      </ul>
-      <ul class="navbar-nav">
-        {% if user.is_authenticated %}
-        {% with role=user.groups.first %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-            <i class="bi bi-person-circle me-1"></i>{{ user.username }}
-          </a>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li class="dropdown-item-text">
-              {% if role %}
-              <span class="badge {{ role.name|role_badge_class }} align-middle">{{ role.name }}</span>
-              {% elif user.is_superuser %}
-              <span class="badge bg-secondary align-middle">Superadmin</span>
-              {% endif %}
-            </li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{% url 'password_change' %}">Cambiar Contraseña</a></li>
-            <li>
-              <form method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button type="submit" class="dropdown-item">Logout</button>
-              </form>
-            </li>
-          </ul>
-        </li>
-        {% endwith %}
-        {% else %}
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'security:login' %}">Login</a>
-        </li>
-        {% endif %}
-      </ul>
+<div class="app-shell {% if not user.is_authenticated %}is-auth{% endif %}">
+  {% if user.is_authenticated %}
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <a href="{% url 'billing:home' %}" class="brand-link">
+        <span class="brand-icon"><i class="bi bi-graph-up-arrow"></i></span>
+        <span class="brand-text">Sistema de Ventas</span>
+      </a>
     </div>
-  </div>
-</nav>
 
-<div class="container mt-4">
-  {% if messages %}
-    {% for m in messages %}
-    <div class="alert alert-{{ m.level_tag }} alert-dismissible fade show{% if m.extra_tags == 'auto-dismiss' %} js-auto-dismiss{% endif %}">
-      {{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    {% endfor %}
+    <nav class="sidebar-nav">
+      {% url 'billing:home' as home_url %}
+      <a class="nav-link {% if request.path == home_url %}active{% endif %}" href="{{ home_url }}">
+        <i class="bi bi-speedometer2"></i><span>Inicio</span>
+      </a>
+
+      {% if perms.billing.view_brand or perms.billing.add_brand or perms.billing.change_brand or perms.billing.delete_brand or perms.purchasing.view_purchase or perms.purchasing.add_purchase or perms.purchasing.change_purchase or perms.purchasing.delete_purchase or perms.billing.view_productgroup or perms.billing.add_productgroup or perms.billing.change_productgroup or perms.billing.delete_productgroup or perms.billing.view_supplier or perms.billing.add_supplier or perms.billing.change_supplier or perms.billing.delete_supplier or perms.billing.view_product or perms.billing.add_product or perms.billing.change_product or perms.billing.delete_product %}
+      <div class="nav-section-label">Compras</div>
+      {% endif %}
+
+      {% if perms.billing.view_brand or perms.billing.add_brand or perms.billing.change_brand or perms.billing.delete_brand %}
+      {% url 'billing:brand_list' as brand_list_url %}
+      <a class="nav-link {% if request.path == brand_list_url %}active{% endif %}" href="{{ brand_list_url }}">
+        <i class="bi bi-award"></i><span>Marcas</span>
+      </a>
+      {% endif %}
+
+      {% if perms.purchasing.view_purchase or perms.purchasing.add_purchase or perms.purchasing.change_purchase or perms.purchasing.delete_purchase %}
+      {% url 'purchasing:purchase_list' as purchase_list_url %}
+      <a class="nav-link {% if request.path == purchase_list_url %}active{% endif %}" href="{{ purchase_list_url }}">
+        <i class="bi bi-cart"></i><span>Compras</span>
+      </a>
+      {% url 'creditos_compras:cuotas_pendientes' as cuotas_compras_url %}
+      <a class="nav-link {% if request.path == cuotas_compras_url %}active{% endif %}" href="{{ cuotas_compras_url }}">
+        <i class="bi bi-hourglass-split"></i><span>Cuotas Pendientes</span>
+      </a>
+      {% endif %}
+
+      {% if perms.billing.view_productgroup or perms.billing.add_productgroup or perms.billing.change_productgroup or perms.billing.delete_productgroup %}
+      {% url 'billing:productgroup_list' as productgroup_list_url %}
+      <a class="nav-link {% if request.path == productgroup_list_url %}active{% endif %}" href="{{ productgroup_list_url }}">
+        <i class="bi bi-grid"></i><span>Grupos</span>
+      </a>
+      {% endif %}
+
+      {% if perms.billing.view_supplier or perms.billing.add_supplier or perms.billing.change_supplier or perms.billing.delete_supplier %}
+      {% url 'billing:supplier_list' as supplier_list_url %}
+      <a class="nav-link {% if request.path == supplier_list_url %}active{% endif %}" href="{{ supplier_list_url }}">
+        <i class="bi bi-truck"></i><span>Proveedores</span>
+      </a>
+      {% endif %}
+
+      {% if perms.billing.view_product or perms.billing.add_product or perms.billing.change_product or perms.billing.delete_product %}
+      {% url 'billing:product_list' as product_list_url %}
+      <a class="nav-link {% if request.path == product_list_url %}active{% endif %}" href="{{ product_list_url }}">
+        <i class="bi bi-box-seam"></i><span>Productos</span>
+      </a>
+      {% endif %}
+
+      {% if perms.billing.view_customer or perms.billing.add_customer or perms.billing.change_customer or perms.billing.delete_customer or perms.billing.view_invoice or perms.billing.add_invoice or perms.billing.change_invoice or perms.billing.delete_invoice %}
+      <div class="nav-section-label">Ventas</div>
+      {% endif %}
+
+      {% if perms.billing.view_customer or perms.billing.add_customer or perms.billing.change_customer or perms.billing.delete_customer %}
+      {% url 'billing:customer_list' as customer_list_url %}
+      <a class="nav-link {% if request.path == customer_list_url %}active{% endif %}" href="{{ customer_list_url }}">
+        <i class="bi bi-people"></i><span>Clientes</span>
+      </a>
+      {% endif %}
+
+      {% if perms.billing.view_invoice or perms.billing.add_invoice or perms.billing.change_invoice or perms.billing.delete_invoice %}
+      {% url 'billing:invoice_list' as invoice_list_url %}
+      <a class="nav-link {% if request.path == invoice_list_url %}active{% endif %}" href="{{ invoice_list_url }}">
+        <i class="bi bi-receipt"></i><span>Facturas</span>
+      </a>
+      {% url 'creditos_ventas:cuotas_pendientes' as cuotas_ventas_url %}
+      <a class="nav-link {% if request.path == cuotas_ventas_url %}active{% endif %}" href="{{ cuotas_ventas_url }}">
+        <i class="bi bi-hourglass-split"></i><span>Cuotas Pendientes</span>
+      </a>
+      {% endif %}
+
+      {% if user|has_group:'Administrador' %}
+      <div class="nav-section-label">Seguridad</div>
+      {% url 'security:user_list' as user_list_url %}
+      <a class="nav-link {% if request.path == user_list_url %}active{% endif %}" href="{{ user_list_url }}">
+        <i class="bi bi-people-fill"></i><span>Usuarios</span>
+      </a>
+      {% url 'security:group_list' as group_list_url %}
+      <a class="nav-link {% if request.path == group_list_url %}active{% endif %}" href="{{ group_list_url }}">
+        <i class="bi bi-shield-lock"></i><span>Roles</span>
+      </a>
+      {% url 'security:permission_list' as permission_list_url %}
+      <a class="nav-link {% if request.path == permission_list_url %}active{% endif %}" href="{{ permission_list_url }}">
+        <i class="bi bi-key"></i><span>Catálogo de Permisos</span>
+      </a>
+      {% url 'billing:configuracion' as configuracion_url %}
+      <a class="nav-link {% if request.path == configuracion_url %}active{% endif %}" href="{{ configuracion_url }}">
+        <i class="bi bi-gear"></i><span>Configuración</span>
+      </a>
+      {% endif %}
+    </nav>
+  </aside>
   {% endif %}
-  {% block content %}
 
+  <div class="app-main">
+    {% if user.is_authenticated %}
+    <header class="topbar">
+      <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Abrir menú">
+        <i class="bi bi-list"></i>
+      </button>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-user dropdown">
+        {% with role=user.groups.first %}
+        <a class="dropdown-toggle" href="#" data-bs-toggle="dropdown">
+          <i class="bi bi-person-circle fs-5"></i>{{ user.username }}
+        </a>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li class="dropdown-item-text">
+            {% if role %}
+            <span class="badge {{ role.name|role_badge_class }} align-middle">{{ role.name }}</span>
+            {% elif user.is_superuser %}
+            <span class="badge bg-secondary align-middle">Superadmin</span>
+            {% endif %}
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="{% url 'password_change' %}">Cambiar Contraseña</a></li>
+          <li>
+            <form method="post" action="{% url 'logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="dropdown-item">Logout</button>
+            </form>
+          </li>
+        </ul>
+        {% endwith %}
+      </div>
+    </header>
+    {% endif %}
 
-  {% endblock %}
+    <main class="content-area">
+      {% if messages %}
+        {% for m in messages %}
+        <div class="alert alert-{{ m.level_tag }} alert-dismissible fade show{% if m.extra_tags == 'auto-dismiss' %} js-auto-dismiss{% endif %}">
+          {{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  {% if user.is_authenticated %}
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  {% endif %}
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // Auto-cierre SOLO para mensajes marcados explícitamente con
-  // extra_tags='auto-dismiss' (ej. el banner de "Permisos predeterminados"
-  // / "Guardar como predeterminado") -- el resto de los mensajes del
-  // sistema no lleva esa clase y sigue exactamente igual que antes,
-  // cerrándose solo con la X.
   document.querySelectorAll('.js-auto-dismiss').forEach(function (el) {
     setTimeout(function () {
       bootstrap.Alert.getOrCreateInstance(el).close();
     }, 4500);
   });
+
+  (function () {
+    var toggle = document.getElementById('sidebarToggle');
+    var sidebar = document.getElementById('sidebar');
+    var backdrop = document.getElementById('sidebarBackdrop');
+    if (!toggle || !sidebar || !backdrop) return;
+
+    function closeSidebar() {
+      sidebar.classList.remove('open');
+      document.body.classList.remove('sidebar-open');
+    }
+
+    toggle.addEventListener('click', function () {
+      sidebar.classList.toggle('open');
+      document.body.classList.toggle('sidebar-open');
+    });
+    backdrop.addEventListener('click', closeSidebar);
+  })();
 </script>
 </body>
 </html>

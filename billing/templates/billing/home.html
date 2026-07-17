@@ -3,46 +3,50 @@
 {% block content %}
 
 <!-- Bienvenida -->
-<div class="p-4 mb-4 bg-light rounded-3">
-  <h1>Bienvenido, {{ user.first_name|default:user.username }}!</h1>
-  <p class="lead">Sistema de gestión de ventas y facturación </p>
+<div class="p-4 mb-4 rounded-4 text-white" style="background:linear-gradient(135deg,var(--primary-darker),var(--primary-dark));">
+  <h1 class="mb-1">Bienvenido, {{ user.first_name|default:user.username }}!</h1>
+  <p class="lead mb-0 opacity-75">Sistema de gestión de ventas y facturación</p>
 </div>
 
 <!-- Tarjetas de resumen -->
-<div class="row mb-4">
+<div class="row mb-4 g-3">
   <div class="col-md-3">
-    <div class="card text-white bg-primary">
-      <div class="card-body text-center">
-        <h2>{{ total_brands }}</h2>
-        <p>Marcas</p>
-        <a href="{% url 'billing:brand_list' %}" class="text-white">Ver todo</a>
+    <div class="card stat-card text-white bg-primary">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-award fs-2 opacity-75 d-block mb-2"></i>
+        <h2 class="mb-0">{{ total_brands }}</h2>
+        <p class="mb-2">Marcas</p>
+        <a href="{% url 'billing:brand_list' %}" class="text-white text-decoration-none">Ver todo <i class="bi bi-arrow-right"></i></a>
       </div>
     </div>
   </div>
   <div class="col-md-3">
-    <div class="card text-white bg-success">
-      <div class="card-body text-center">
-        <h2>{{ total_products }}</h2>
-        <p>Productos</p>
-        <a href="{% url 'billing:product_list' %}" class="text-white">Ver todo</a>
+    <div class="card stat-card text-white bg-success">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-box-seam fs-2 opacity-75 d-block mb-2"></i>
+        <h2 class="mb-0">{{ total_products }}</h2>
+        <p class="mb-2">Productos</p>
+        <a href="{% url 'billing:product_list' %}" class="text-white text-decoration-none">Ver todo <i class="bi bi-arrow-right"></i></a>
       </div>
     </div>
   </div>
   <div class="col-md-3">
-    <div class="card text-white bg-info">
-      <div class="card-body text-center">
-        <h2>{{ total_customers }}</h2>
-        <p>Clientes</p>
-        <a href="{% url 'billing:customer_list' %}" class="text-white">Ver todo</a>
+    <div class="card stat-card text-white bg-info">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-people fs-2 opacity-75 d-block mb-2"></i>
+        <h2 class="mb-0">{{ total_customers }}</h2>
+        <p class="mb-2">Clientes</p>
+        <a href="{% url 'billing:customer_list' %}" class="text-white text-decoration-none">Ver todo <i class="bi bi-arrow-right"></i></a>
       </div>
     </div>
   </div>
   <div class="col-md-3">
-    <div class="card text-white bg-warning">
-      <div class="card-body text-center">
-        <h2>{{ total_invoices }}</h2>
-        <p>Facturas</p>
-        <a href="{% url 'billing:invoice_list' %}" class="text-white">Ver todo</a>
+    <div class="card stat-card text-white bg-warning">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-receipt fs-2 opacity-75 d-block mb-2"></i>
+        <h2 class="mb-0">{{ total_invoices }}</h2>
+        <p class="mb-2">Facturas</p>
+        <a href="{% url 'billing:invoice_list' %}" class="text-white text-decoration-none">Ver todo <i class="bi bi-arrow-right"></i></a>
       </div>
     </div>
   </div>
