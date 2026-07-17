@@ -55,29 +55,29 @@
   </div>
 
   <dl class="detail-list">
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>DNI/RUC</dt>
       <dd><span class="badge rounded-pill bg-primary bg-opacity-10 text-primary fw-semibold px-3 py-2">{{ customer.dni }}</span></dd>
     </div>
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Nombre</dt>
       <dd>{{ customer.first_name }}</dd>
     </div>
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Apellido</dt>
       <dd>{{ customer.last_name }}</dd>
     </div>
     {% if customer.address %}
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Dirección</dt>
       <dd>{{ customer.address }}</dd>
     </div>
     {% endif %}
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Creado</dt>
       <dd>{{ customer.created_at|date:"d/m/Y H:i" }}</dd>
     </div>
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Actualizado</dt>
       <dd>{{ customer.updated_at|date:"d/m/Y H:i" }}</dd>
     </div>

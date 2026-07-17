@@ -28,16 +28,16 @@
 
   <dl class="detail-list">
     {% if brand.description %}
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Descripción</dt>
       <dd>{{ brand.description }}</dd>
     </div>
     {% endif %}
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Fecha de creación</dt>
       <dd>{{ brand.created_at|date:"d/m/Y H:i" }}</dd>
     </div>
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Última actualización</dt>
       <dd>{{ brand.updated_at|date:"d/m/Y H:i" }}</dd>
     </div>

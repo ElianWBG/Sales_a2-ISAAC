@@ -38,11 +38,12 @@
       {% if perms.billing.cancelar_invoice_paypal %}
       <hr>
       <p class="mb-2 text-muted small">¿El cliente ya no va a completar este pago?</p>
-      <form method="post" action="{% url 'billing:invoice_cancel_paypal' invoice.pk %}"
-            onsubmit="return confirm('¿Cancelar esta factura? Se restaurará el stock reservado.');">
+      <form method="post" action="{% url 'billing:invoice_cancel_paypal' invoice.pk %}" id="form-cancelar-paypal">
         {% csrf_token %}
-        <button type="submit" class="btn btn-outline-danger btn-sm">Cancelar factura pendiente</button>
       </form>
+      <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalCancelarPaypal">
+        Cancelar factura pendiente
+      </button>
       {% endif %}
     </div>
     {% endif %}
@@ -113,6 +114,31 @@
     {% endif %}
   </div>
 </div>
+
+{% if invoice.estado == 'PENDIENTE' and invoice.metodo_pago == 'PAYPAL' and perms.billing.cancelar_invoice_paypal %}
+{# ── Modal: Cancelar factura pendiente de PayPal ── #}
+<div class="modal fade" id="modalCancelarPaypal" tabindex="-1" aria-labelledby="modalCancelarPaypalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header text-white" style="background:linear-gradient(135deg,var(--danger),#991b1b);">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="modalCancelarPaypalLabel">
+          <i class="bi bi-exclamation-triangle"></i> Cancelar factura
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p class="mb-0">¿Cancelar esta factura? Se restaurará el stock reservado.</p>
+      </div>
+      <div class="modal-footer bg-light">
+        <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Volver</button>
+        <button type="submit" form="form-cancelar-paypal" class="btn btn-danger btn-sm px-4">
+          <i class="bi bi-check-lg"></i> Sí, cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {% if invoice.estado == 'PENDIENTE' and invoice.metodo_pago == 'PAYPAL' %}
 <script src="https://www.paypal.com/sdk/js?client-id={{ paypal_client_id }}&currency=USD&disable-funding=card"></script>

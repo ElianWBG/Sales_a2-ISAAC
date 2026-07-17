@@ -28,34 +28,34 @@
 
   <dl class="detail-list">
     {% if supplier.contact_name %}
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Nombre de contacto</dt>
       <dd>{{ supplier.contact_name }}</dd>
     </div>
     {% endif %}
     {% if supplier.email %}
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Email</dt>
       <dd><a href="mailto:{{ supplier.email }}" class="text-decoration-none">{{ supplier.email }}</a></dd>
     </div>
     {% endif %}
     {% if supplier.phone %}
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Teléfono</dt>
       <dd>{{ supplier.phone }}</dd>
     </div>
     {% endif %}
     {% if supplier.address %}
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Dirección</dt>
       <dd>{{ supplier.address }}</dd>
     </div>
     {% endif %}
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Fecha de creación</dt>
       <dd>{{ supplier.created_at|date:"d/m/Y H:i" }}</dd>
     </div>
-    <div class="detail-row">
+    <div class="kv-row">
       <dt>Última actualización</dt>
       <dd>{{ supplier.updated_at|date:"d/m/Y H:i" }}</dd>
     </div>
