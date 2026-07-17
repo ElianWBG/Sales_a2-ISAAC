@@ -30,6 +30,7 @@ from shared.mixins import (
 )
 from shared.decorators import audit_action, permission_required_with_message, any_crud_permission_required
 from shared.emails import send_invoice_email
+from shared.formatting import money
 from shared.paypal_client import create_paypal_order, capture_paypal_order, extract_capture_data, PayPalError
 from security.views import AdminOnlyMixin
 from .invoice_pdf import generar_pdf_factura
@@ -957,7 +958,7 @@ def invoice_create(request):
                 # aparecer el botón de PayPal para terminar de pagar.
                 messages.info(
                     request,
-                    f'Factura #{invoice.id} creada por ${invoice.total}. '
+                    f'Factura #{invoice.id} creada por {money(invoice.total)}. '
                     f'Completa el pago con PayPal para confirmarla.'
                 )
                 return redirect('billing:invoice_detail', pk=invoice.pk)
@@ -979,13 +980,13 @@ def invoice_create(request):
                 threading.Thread(target=_enviar, daemon=True).start()
                 messages.success(
                     request,
-                    f'Factura #{invoice.id} creada! Total: ${invoice.total}. '
+                    f'Factura #{invoice.id} creada! Total: {money(invoice.total)}. '
                     f'Se enviará por correo a {invoice.customer.email}.'
                 )
             else:
                 messages.warning(
                     request,
-                    f'Factura #{invoice.id} creada! Total: ${invoice.total}. '
+                    f'Factura #{invoice.id} creada! Total: {money(invoice.total)}. '
                     f'El cliente no tiene correo registrado, no se envió factura por email.'
                 )
             return redirect('billing:invoice_list')

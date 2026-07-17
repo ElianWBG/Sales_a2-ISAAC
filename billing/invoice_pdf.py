@@ -28,6 +28,9 @@ def _money(valor):
 
 def generar_pdf_factura(invoice):
     """Devuelve los bytes del PDF de la factura `invoice`."""
+    from .models import ConfiguracionSistema
+    config = ConfiguracionSistema.get_activa()
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
@@ -35,24 +38,48 @@ def generar_pdf_factura(invoice):
         topMargin=2 * cm, bottomMargin=2 * cm,
     )
     styles = getSampleStyleSheet()
-    negocio_style = ParagraphStyle('Negocio', parent=styles['Normal'], fontSize=18, fontName='Helvetica-Bold', textColor=AZUL)
+    negocio_style = ParagraphStyle('Negocio', parent=styles['Normal'], fontSize=18, leading=22, fontName='Helvetica-Bold', textColor=AZUL, spaceAfter=4)
+    tributario_style = ParagraphStyle('Tributario', parent=styles['Normal'], fontSize=9, leading=13, textColor=GRIS_TEXTO)
     titulo_doc_style = ParagraphStyle('TituloDoc', parent=styles['Normal'], fontSize=22, fontName='Helvetica-BoldOblique', alignment=TA_RIGHT, textColor=colors.HexColor('#212529'))
-    label_style = ParagraphStyle('Label', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', textColor=GRIS_TEXTO)
+    label_style = ParagraphStyle('Label', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', textColor=AZUL, spaceAfter=4)
     normal_style = ParagraphStyle('NormalDoc', parent=styles['Normal'], fontSize=10, leading=14)
-    datos_der_style = ParagraphStyle('DatosDer', parent=normal_style, alignment=TA_RIGHT)
     footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=10, alignment=TA_CENTER)
     footer_nota_style = ParagraphStyle('FooterNota', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, textColor=GRIS_TEXTO, spaceBefore=4)
     footer_gen_style = ParagraphStyle('FooterGen', parent=styles['Normal'], fontSize=8, alignment=TA_CENTER, textColor=GRIS_TEXTO, spaceBefore=10)
 
     elements = []
 
-    # --- Encabezado: negocio a la izquierda, título del documento a la derecha ---
+    # --- Encabezado: negocio + datos tributarios a la izquierda, título del
+    # documento a la derecha. Los datos tributarios vienen de
+    # ConfiguracionSistema (editables desde Configuración del Sistema, ya no
+    # son constantes fijas en settings.py) y son todos opcionales -- si no
+    # están configurados se omite la línea en vez de imprimir un dato
+    # inventado. El título usa nombre_comercial si está configurado, para no
+    # dejar "Sistema de Ventas" pisando el nombre real del negocio.
+    titulo_negocio = config.nombre_comercial or 'Sistema de Ventas'
+    establecimiento = (
+        f'Estab.: {config.codigo_establecimiento}  Pto. Emisión: {config.punto_emision}'
+        if config.codigo_establecimiento and config.punto_emision else None
+    )
+    tributarios = [
+        linea for linea in (
+            f'RUC: {config.ruc}' if config.ruc else None,
+            f'Razón Social: {config.razon_social}' if config.razon_social and config.razon_social != titulo_negocio else None,
+            config.direccion_establecimiento_efectiva or None,
+            f'Tel: {config.telefono}' if config.telefono else None,
+            establecimiento,
+        ) if linea
+    ]
+    negocio_col = [Paragraph(titulo_negocio, negocio_style)]
+    if tributarios:
+        negocio_col.append(Paragraph('<br/>'.join(tributarios), tributario_style))
+
     encabezado = Table(
-        [[Paragraph('Sistema de Ventas', negocio_style), Paragraph('FACTURA', titulo_doc_style)]],
+        [[negocio_col, Paragraph('FACTURA', titulo_doc_style)]],
         colWidths=[9 * cm, 9 * cm],
     )
     encabezado.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
         ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ('LINEBELOW', (0, 0), (-1, -1), 1.5, AZUL),
@@ -61,7 +88,7 @@ def generar_pdf_factura(invoice):
     elements.append(encabezado)
     elements.append(Spacer(1, 0.6 * cm))
 
-    # --- Bloque de datos: cliente a la izquierda, fecha/factura/forma de pago a la derecha ---
+    # --- Datos del cliente y de la factura, en dos recuadros separados ---
     if invoice.tipo_pago == 'CREDITO':
         cuotas_count = invoice.cuotas.count()
         forma_pago = f'CRÉDITO ({cuotas_count} cuota{"s" if cuotas_count != 1 else ""})'
@@ -69,21 +96,43 @@ def generar_pdf_factura(invoice):
         metodo = f' - {invoice.get_metodo_pago_display()}' if invoice.metodo_pago else ''
         forma_pago = f'{invoice.get_tipo_pago_display()}{metodo}'
 
-    datos_izq = [
-        Paragraph('Facturar a:', label_style),
-        Paragraph(invoice.customer.full_name, normal_style),
-        Paragraph(f'DNI/RUC: {invoice.customer.dni}', normal_style),
+    cliente_lineas = [invoice.customer.full_name, f'DNI/RUC: {invoice.customer.dni}']
+    if invoice.customer.phone:
+        cliente_lineas.append(f'Tel: {invoice.customer.phone}')
+    if invoice.customer.email:
+        cliente_lineas.append(invoice.customer.email)
+
+    recuadro_cliente = [
+        Paragraph('FACTURAR A', label_style),
+        *[Paragraph(l, normal_style) for l in cliente_lineas],
     ]
-    datos_der = [
-        Paragraph(f'<b>FECHA:</b> {invoice.invoice_date.strftime("%d/%m/%Y %H:%M")}', datos_der_style),
-        Paragraph(f'<b>FACTURA N°:</b> {invoice.id}', datos_der_style),
-        Paragraph(f'<b>FORMA DE PAGO:</b> {forma_pago}', datos_der_style),
+    recuadro_factura = [
+        Paragraph('DATOS DE LA FACTURA', label_style),
+        Paragraph(f'<b>N°:</b> {invoice.id}', normal_style),
+        Paragraph(f'<b>Fecha:</b> {invoice.invoice_date.strftime("%d/%m/%Y %H:%M")}', normal_style),
+        Paragraph(f'<b>Forma de pago:</b> {forma_pago}', normal_style),
     ]
-    bloque_datos = Table([[datos_izq, datos_der]], colWidths=[9 * cm, 9 * cm])
+
+    # Columna angosta sin fondo entre ambos recuadros para que no queden
+    # pegados uno al otro (Table no tiene un "gap" nativo entre celdas).
+    bloque_datos = Table(
+        [[recuadro_cliente, '', recuadro_factura]],
+        colWidths=[8.7 * cm, 0.6 * cm, 8.7 * cm],
+    )
     bloque_datos.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('BACKGROUND', (0, 0), (0, 0), GRIS_FONDO),
+        ('BACKGROUND', (2, 0), (2, 0), GRIS_FONDO),
+        ('BOX', (0, 0), (0, 0), 1, GRIS_BORDE),
+        ('BOX', (2, 0), (2, 0), 1, GRIS_BORDE),
+        ('LEFTPADDING', (0, 0), (0, 0), 10),
+        ('RIGHTPADDING', (0, 0), (0, 0), 10),
+        ('LEFTPADDING', (2, 0), (2, 0), 10),
+        ('RIGHTPADDING', (2, 0), (2, 0), 10),
+        ('LEFTPADDING', (1, 0), (1, 0), 0),
+        ('RIGHTPADDING', (1, 0), (1, 0), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
     ]))
     elements.append(bloque_datos)
     elements.append(Spacer(1, 0.8 * cm))

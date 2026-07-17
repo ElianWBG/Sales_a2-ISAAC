@@ -189,3 +189,15 @@ SRI_MICRO_API_KEY = config('SRI_MICRO_API_KEY', default='')
 SRI_MICRO_TIMEOUT = config('SRI_MICRO_TIMEOUT', default=30, cast=int)
 SRI_STORE_NAME    = config('SRI_STORE_NAME', default='')
 SRI_LOGO_URL      = config('SRI_LOGO_URL', default='')
+
+# DEPRECADO -- la identidad tributaria del negocio se movió a
+# ConfiguracionSistema (editable desde Configuración del Sistema en la UI).
+# Nada en el código lee esto ya (billing/invoice_pdf.py usa
+# ConfiguracionSistema.get_activa()); se dejan estas 3 líneas SOLO para que
+# la migración billing/migrations/0015_identidad_tributaria.py pueda
+# copiar el valor que ya estaba configurado en Railway hacia la base de
+# datos en el próximo deploy. Una vez confirmado que esa migración corrió
+# en producción, borrar estas 3 líneas y las variables EMPRESA_* de Railway.
+EMPRESA_RUC        = config('EMPRESA_RUC', default='')
+EMPRESA_DIRECCION  = config('EMPRESA_DIRECCION', default='')
+EMPRESA_TELEFONO   = config('EMPRESA_TELEFONO', default='')

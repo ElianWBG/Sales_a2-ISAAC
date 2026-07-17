@@ -84,7 +84,7 @@ class UserCreateView(AdminOnlyMixin, CreateView):
 
         PerfilUsuario.objects.create(user=user, must_change_password=True)
 
-        enviado = send_welcome_email_with_temp_password(user, temp_password)
+        enviado = send_welcome_email_with_temp_password(user, temp_password, request=self.request)
 
         if enviado:
             messages.success(

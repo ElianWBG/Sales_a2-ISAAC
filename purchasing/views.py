@@ -23,6 +23,7 @@ from .models import Purchase, PurchaseDetail
 from .forms import PurchaseForm, PurchaseDetailFormSet, PurchaseSearchForm
 from .purchase_pdf import generar_pdf_compra
 from shared.emails import send_purchase_email
+from shared.formatting import money
 
 logger = logging.getLogger(__name__)
 
@@ -157,19 +158,19 @@ def purchase_create(request):
             if enviado:
                 messages.success(
                     request,
-                    f'Compra #{purchase.id} creada! Total: ${purchase.total}. '
+                    f'Compra #{purchase.id} creada! Total: {money(purchase.total)}. '
                     f'Se envió por correo a {purchase.supplier.email}.'
                 )
             elif enviado is None:
                 messages.warning(
                     request,
-                    f'Compra #{purchase.id} creada! Total: ${purchase.total}. '
+                    f'Compra #{purchase.id} creada! Total: {money(purchase.total)}. '
                     f'No se pudo enviar el correo en este momento; intenta reenviarla más tarde.'
                 )
             else:
                 messages.warning(
                     request,
-                    f'Compra #{purchase.id} creada! Total: ${purchase.total}. '
+                    f'Compra #{purchase.id} creada! Total: {money(purchase.total)}. '
                     f'El proveedor no tiene correo registrado, no se envió la orden por email.'
                 )
             return redirect('purchasing:purchase_list')

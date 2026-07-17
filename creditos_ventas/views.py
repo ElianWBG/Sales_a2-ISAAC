@@ -16,6 +16,7 @@ from django.views.generic import ListView, DeleteView
 from billing.models import Invoice
 from shared.mixins import ProtectedDeleteMixin, PermissionRequiredMixin, AnyCrudPermissionRequiredMixin
 from shared.decorators import permission_required_with_message, any_crud_permission_required
+from shared.formatting import money
 from shared.paypal_client import create_paypal_order, capture_paypal_order, extract_capture_data, PayPalError
 
 from .models import CuotaVenta, PagoCuotaVenta
@@ -155,7 +156,7 @@ def registrar_pago(request, cuota_pk):
                 recalcular_factura(cuota_locked.factura)
                 messages.success(
                     request,
-                    f'Pago de ${pago.valor} registrado en la cuota {cuota_locked.numero} de la factura #{cuota_locked.factura_id}.'
+                    f'Pago de {money(pago.valor)} registrado en la cuota {cuota_locked.numero} de la factura #{cuota_locked.factura_id}.'
                 )
                 return redirect('creditos_ventas:cuotas_factura', pk=cuota_locked.factura_id)
     else:
@@ -311,7 +312,7 @@ def pagar_cuotas_lote(request, invoice_pk):
 
     messages.success(
         request,
-        f'Se pagaron {len(cuotas)} cuota(s) por un total de ${total_pagado}.'
+        f'Se pagaron {len(cuotas)} cuota(s) por un total de {money(total_pagado)}.'
     )
     return redirect('creditos_ventas:cuotas_factura', pk=invoice.pk)
 

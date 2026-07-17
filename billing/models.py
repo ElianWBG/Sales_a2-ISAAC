@@ -1,6 +1,9 @@
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from shared.validators import validate_cedula_ec
+
+validate_ruc = RegexValidator(r'^\d{13}$', 'El RUC debe tener 13 dígitos numéricos.')
+validate_codigo_sri = RegexValidator(r'^\d{3}$', 'Debe tener 3 dígitos numéricos (ej: 001).')
 
 
 class Brand(models.Model):
@@ -192,6 +195,34 @@ class ConfiguracionSistema(models.Model):
         help_text='Porcentaje de IVA aplicado a facturas y compras. Ej: 15.00 = 15%.',
         validators=[MinValueValidator(0), MaxValueValidator(100)],
     )
+
+    # --- Identidad tributaria del emisor: antes vivían como constantes fijas
+    # EMPRESA_RUC/EMPRESA_DIRECCION/EMPRESA_TELEFONO en settings.py -- se
+    # movieron acá para poder editarlas desde la UI sin tocar código. Todas
+    # opcionales (blank=True): un sistema recién instalado no debería
+    # romperse por no tener esto configurado todavía -- ver generar_pdf_factura
+    # en billing/invoice_pdf.py, que omite la línea si el campo está vacío.
+    ruc = models.CharField(
+        max_length=13, blank=True, default='', verbose_name='RUC',
+        validators=[validate_ruc],
+    )
+    razon_social = models.CharField(max_length=255, blank=True, default='', verbose_name='Razón Social')
+    nombre_comercial = models.CharField(max_length=255, blank=True, default='', verbose_name='Nombre Comercial')
+    direccion_matriz = models.CharField(max_length=255, blank=True, default='', verbose_name='Dirección Matriz')
+    direccion_establecimiento = models.CharField(
+        max_length=255, blank=True, default='', verbose_name='Dirección del Establecimiento',
+        help_text='Opcional -- si se deja vacío, se usa la dirección matriz.',
+    )
+    codigo_establecimiento = models.CharField(
+        max_length=3, blank=True, default='', verbose_name='Código de Establecimiento',
+        validators=[validate_codigo_sri],
+    )
+    punto_emision = models.CharField(
+        max_length=3, blank=True, default='', verbose_name='Punto de Emisión',
+        validators=[validate_codigo_sri],
+    )
+    telefono = models.CharField(max_length=20, blank=True, default='', verbose_name='Teléfono')
+
     actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -205,6 +236,11 @@ class ConfiguracionSistema(models.Model):
     def iva_display(self):
         """'15.00' -> '15', '12.50' -> '12.5' (sin coma decimal, sin ceros de más)."""
         return f'{self.iva_porcentaje:.2f}'.rstrip('0').rstrip('.')
+
+    @property
+    def direccion_establecimiento_efectiva(self):
+        """Dirección del establecimiento, o la matriz si no se configuró una específica."""
+        return self.direccion_establecimiento or self.direccion_matriz
 
     @classmethod
     def get_activa(cls):

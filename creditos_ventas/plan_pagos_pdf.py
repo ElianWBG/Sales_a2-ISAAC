@@ -15,6 +15,8 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 
+from shared.formatting import money
+
 from .models import PagoCuotaVenta
 
 
@@ -34,7 +36,7 @@ def generar_pdf_plan_pagos(invoice):
     elements.append(Paragraph(f'DNI/RUC: {invoice.customer.dni}', styles['Normal']))
     elements.append(Paragraph(f'Tipo de pago: {invoice.get_tipo_pago_display()}', styles['Normal']))
     elements.append(Paragraph(f'Estado de la factura: {invoice.get_estado_display()}', styles['Normal']))
-    elements.append(Paragraph(f'Saldo pendiente actual: ${invoice.saldo}', styles['Normal']))
+    elements.append(Paragraph(f'Saldo pendiente actual: {money(invoice.saldo)}', styles['Normal']))
     elements.append(Spacer(1, 0.6 * cm))
 
     # ── Tabla de cuotas ──
@@ -45,8 +47,8 @@ def generar_pdf_plan_pagos(invoice):
         cuota_rows.append([
             str(cuota.numero),
             cuota.fecha_vencimiento.strftime('%d/%m/%Y'),
-            f'${cuota.valor}',
-            f'${cuota.saldo}',
+            money(cuota.valor),
+            money(cuota.saldo),
             cuota.get_estado_display(),
         ])
 
@@ -82,7 +84,7 @@ def generar_pdf_plan_pagos(invoice):
             pago_rows.append([
                 str(pago.cuota.numero),
                 fecha_str,
-                f'${pago.valor}',
+                money(pago.valor),
                 pago.observacion_display,
             ])
     else:

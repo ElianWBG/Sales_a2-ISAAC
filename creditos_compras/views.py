@@ -15,6 +15,7 @@ from django.views.generic import ListView, DeleteView
 from purchasing.models import Purchase
 from shared.mixins import ProtectedDeleteMixin, PermissionRequiredMixin, AnyCrudPermissionRequiredMixin
 from shared.decorators import permission_required_with_message, any_crud_permission_required
+from shared.formatting import money
 
 from .models import CuotaCompra, PagoCuotaCompra
 from .forms import PagoCuotaCompraForm, CuotaCompraPendienteSearchForm
@@ -133,7 +134,7 @@ def registrar_pago(request, cuota_pk):
                 recalcular_compra(cuota_locked.compra)
                 messages.success(
                     request,
-                    f'Pago de ${pago.valor} registrado en la cuota {cuota_locked.numero} de la compra #{cuota_locked.compra_id}.'
+                    f'Pago de {money(pago.valor)} registrado en la cuota {cuota_locked.numero} de la compra #{cuota_locked.compra_id}.'
                 )
                 return redirect('creditos_compras:cuotas_compra', pk=cuota_locked.compra_id)
     else:
@@ -223,7 +224,7 @@ def pagar_cuotas_lote(request, purchase_pk):
 
     messages.success(
         request,
-        f'Se pagaron {len(cuotas)} cuota(s) por un total de ${total_pagado}.'
+        f'Se pagaron {len(cuotas)} cuota(s) por un total de {money(total_pagado)}.'
     )
     return redirect('creditos_compras:cuotas_compra', pk=purchase.pk)
 

@@ -171,7 +171,12 @@ class CustomerForm(forms.ModelForm):
 class ConfiguracionForm(forms.ModelForm):
     class Meta:
         model = ConfiguracionSistema
-        fields = ['iva_porcentaje']
+        fields = [
+            'iva_porcentaje',
+            'ruc', 'razon_social', 'nombre_comercial',
+            'direccion_matriz', 'direccion_establecimiento',
+            'codigo_establecimiento', 'punto_emision', 'telefono',
+        ]
 
     def clean_iva_porcentaje(self):
         # Los MinValueValidator(0)/MaxValueValidator(100) del modelo ya
@@ -183,6 +188,27 @@ class ConfiguracionForm(forms.ModelForm):
         if iva is not None and (iva < 0 or iva > 100):
             raise forms.ValidationError('El IVA debe estar entre 0% y 100%.')
         return iva
+
+    def clean_ruc(self):
+        # validate_ruc del modelo ya cubre esto vía full_clean(); se repite
+        # acá (mismo patrón que clean_iva_porcentaje) por el mensaje amigable.
+        # Campo opcional: solo se valida el formato si se cargó un valor.
+        ruc = self.cleaned_data.get('ruc')
+        if ruc and (len(ruc) != 13 or not ruc.isdigit()):
+            raise forms.ValidationError('El RUC debe tener 13 dígitos numéricos.')
+        return ruc
+
+    def _clean_codigo_3_digitos(self, campo, etiqueta):
+        valor = self.cleaned_data.get(campo)
+        if valor and (len(valor) != 3 or not valor.isdigit()):
+            raise forms.ValidationError(f'{etiqueta} debe tener 3 dígitos numéricos (ej: 001).')
+        return valor
+
+    def clean_codigo_establecimiento(self):
+        return self._clean_codigo_3_digitos('codigo_establecimiento', 'El código de establecimiento')
+
+    def clean_punto_emision(self):
+        return self._clean_codigo_3_digitos('punto_emision', 'El punto de emisión')
 
 
 class InvoiceForm(forms.ModelForm):

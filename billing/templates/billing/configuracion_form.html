@@ -14,14 +14,30 @@
           {% if form.non_field_errors %}
             <div class="alert alert-danger">{{ form.non_field_errors }}</div>
           {% endif %}
+
+          <h6 class="text-uppercase text-muted small fw-bold mb-3">Configuración General</h6>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="{{ form.iva_porcentaje.id_for_label }}">{{ form.iva_porcentaje.label }}</label>
+            {% render_field form.iva_porcentaje class="form-control" %}
+            {% if form.iva_porcentaje.help_text %}<small class="text-muted d-block mt-1">{{ form.iva_porcentaje.help_text }}</small>{% endif %}
+            {% for error in form.iva_porcentaje.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+
+          <hr class="my-4">
+
+          <h6 class="text-uppercase text-muted small fw-bold mb-1">Identidad Tributaria</h6>
+          <p class="text-muted small mb-3">Datos del emisor usados en el encabezado del PDF de factura.</p>
           {% for field in form %}
+            {% if field.name != 'iva_porcentaje' %}
             <div class="mb-3">
               <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {% render_field field class="form-control" %}
               {% if field.help_text %}<small class="text-muted d-block mt-1">{{ field.help_text }}</small>{% endif %}
               {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
             </div>
+            {% endif %}
           {% endfor %}
+
           <div class="d-flex gap-2 mt-4">
             <button type="submit" class="btn btn-primary px-4">Guardar</button>
             <a href="{% url 'billing:home' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
