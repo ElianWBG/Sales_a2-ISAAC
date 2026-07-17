@@ -26,15 +26,6 @@
 
           <hr class="my-4">
 
-          {# Colapsada por defecto -- mismo patrón que los módulos del
-             acordeón de Roles→Permisos (security/role_permissions.html):
-             botón con flecha que rota + contenido que se expande debajo.
-             El collapse de Bootstrap solo oculta con CSS, no saca los
-             campos del DOM ni los deshabilita, así que guardar con la
-             sección cerrada envía los valores que ya tenía igual.
-             Excepción: si un submit falló por un error en alguno de estos
-             campos (ej. RUC mal formado), se abre sola -- si no, el
-             usuario vería "guardado" fallar sin ver por qué. #}
           <div class="accordion" id="identidadTributariaAccordion">
             <div class="accordion-item mb-2 border-0 shadow-sm">
               <h2 class="accordion-header">
